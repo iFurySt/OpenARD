@@ -20,6 +20,82 @@ func validCatalog() Catalog {
 	}
 }
 
+func TestCatalogUnmarshalRejectsUnknownRootFields(t *testing.T) {
+	body := []byte(`{
+		"specVersion": "1.0",
+		"collections": [],
+		"entries": [
+			{
+				"identifier": "urn:air:acme.com:server:weather",
+				"displayName": "Weather Data Node",
+				"type": "application/mcp-server-card+json",
+				"url": "https://api.acme.com/mcp/weather.json"
+			}
+		]
+	}`)
+
+	var catalog Catalog
+	err := json.Unmarshal(body, &catalog)
+	if err == nil {
+		t.Fatal("expected unknown root field to be rejected")
+	}
+	if !strings.Contains(err.Error(), `catalog contains unsupported field "collections"`) {
+		t.Fatalf("expected unknown root field error, got %v", err)
+	}
+}
+
+func TestCatalogUnmarshalRejectsUnknownHostFields(t *testing.T) {
+	body := []byte(`{
+		"specVersion": "1.0",
+		"host": {
+			"displayName": "Acme Registry",
+			"supportUrl": "https://acme.com/support"
+		},
+		"entries": [
+			{
+				"identifier": "urn:air:acme.com:server:weather",
+				"displayName": "Weather Data Node",
+				"type": "application/mcp-server-card+json",
+				"url": "https://api.acme.com/mcp/weather.json"
+			}
+		]
+	}`)
+
+	var catalog Catalog
+	err := json.Unmarshal(body, &catalog)
+	if err == nil {
+		t.Fatal("expected unknown host field to be rejected")
+	}
+	if !strings.Contains(err.Error(), `host contains unsupported field "supportUrl"`) {
+		t.Fatalf("expected unknown host field error, got %v", err)
+	}
+}
+
+func TestCatalogUnmarshalAllowsEntryExtensionFields(t *testing.T) {
+	body := []byte(`{
+		"specVersion": "1.0",
+		"entries": [
+			{
+				"identifier": "urn:air:acme.com:server:weather",
+				"displayName": "Weather Data Node",
+				"type": "application/mcp-server-card+json",
+				"url": "https://api.acme.com/mcp/weather.json",
+				"schemaOrg": {
+					"@type": "SoftwareApplication"
+				}
+			}
+		]
+	}`)
+
+	var catalog Catalog
+	if err := json.Unmarshal(body, &catalog); err != nil {
+		t.Fatalf("expected entry extension field to remain accepted: %v", err)
+	}
+	if err := ValidateCatalog(catalog); err != nil {
+		t.Fatalf("expected catalog with entry extension to validate after decode: %v", err)
+	}
+}
+
 func TestValidateCatalogRejectsDuplicateIdentifiers(t *testing.T) {
 	catalog := validCatalog()
 	catalog.Entries = append(catalog.Entries, CatalogEntry{

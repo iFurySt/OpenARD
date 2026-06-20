@@ -36,6 +36,18 @@ var supportedTrustProvenanceRelations = map[string]struct{}{
 	"publishedFrom": {},
 	"copiedFrom":    {},
 }
+var allowedCatalogFields = map[string]struct{}{
+	"specVersion": {},
+	"host":        {},
+	"entries":     {},
+}
+var allowedHostInfoFields = map[string]struct{}{
+	"displayName":      {},
+	"identifier":       {},
+	"documentationUrl": {},
+	"logoUrl":          {},
+	"trustManifest":    {},
+}
 var allowedTrustManifestFields = map[string]struct{}{
 	"identity":     {},
 	"identityType": {},
@@ -75,6 +87,42 @@ type HostInfo struct {
 	DocumentationURL string         `json:"documentationUrl,omitempty"`
 	LogoURL          string         `json:"logoUrl,omitempty"`
 	TrustManifest    map[string]any `json:"trustManifest,omitempty"`
+}
+
+func (catalog *Catalog) UnmarshalJSON(data []byte) error {
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	if err := validateKnownJSONFields(raw, allowedCatalogFields, "catalog"); err != nil {
+		return err
+	}
+
+	type catalogAlias Catalog
+	var decoded catalogAlias
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	*catalog = Catalog(decoded)
+	return nil
+}
+
+func (host *HostInfo) UnmarshalJSON(data []byte) error {
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	if err := validateKnownJSONFields(raw, allowedHostInfoFields, "host"); err != nil {
+		return err
+	}
+
+	type hostInfoAlias HostInfo
+	var decoded hostInfoAlias
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	*host = HostInfo(decoded)
+	return nil
 }
 
 type CatalogEntry struct {
@@ -462,6 +510,20 @@ func validateTrustProvenance(value any) error {
 }
 
 func validateKnownFields(object map[string]any, allowed map[string]struct{}, path string) error {
+	unknown := []string{}
+	for field := range object {
+		if _, ok := allowed[field]; !ok {
+			unknown = append(unknown, field)
+		}
+	}
+	if len(unknown) == 0 {
+		return nil
+	}
+	sort.Strings(unknown)
+	return fmt.Errorf("%s contains unsupported field %q", path, unknown[0])
+}
+
+func validateKnownJSONFields(object map[string]json.RawMessage, allowed map[string]struct{}, path string) error {
 	unknown := []string{}
 	for field := range object {
 		if _, ok := allowed[field]; !ok {

@@ -38,6 +38,8 @@ Use this document to make secure defaults explicit and legible to agents.
 ## Trust Verification
 
 - `--pin-source-digest` can add `trustManifest.sourceDigest` for URL artifacts.
+- Catalog root fields and `host` fields must match the ARD schema; deprecated root
+  fields such as `collections` are rejected before validation.
 - Catalog `host` metadata is validated for required display name, absolute
   documentation/logo URIs, and host-level `trustManifest` structure.
 - Catalog entry `url` values must be absolute HTTP(S) URLs.
