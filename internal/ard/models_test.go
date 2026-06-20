@@ -103,6 +103,42 @@ func TestValidateCatalogEntryEnforcesValueOrReference(t *testing.T) {
 	}
 }
 
+func TestValidateCatalogEntryUpdatedAtAndMetadata(t *testing.T) {
+	entry := CatalogEntry{
+		Identifier:  "urn:air:acme.com:server:weather",
+		DisplayName: "Weather Data Node",
+		Type:        TypeMCPServerCard,
+		URL:         "https://api.acme.com/mcp/weather.json",
+		UpdatedAt:   "2026-06-21T02:30:00Z",
+		Metadata: map[string]any{
+			"adapter":     "mcp",
+			"remoteCount": 2,
+			"verified":    true,
+			"deprecated":  nil,
+		},
+	}
+	if err := ValidateCatalogEntry(entry); err != nil {
+		t.Fatalf("expected valid updatedAt and metadata: %v", err)
+	}
+
+	entry.UpdatedAt = "2026-06-21"
+	if err := ValidateCatalogEntry(entry); err == nil {
+		t.Fatal("expected date-only updatedAt to be rejected")
+	}
+
+	entry.UpdatedAt = "2026-06-21T02:30:00Z"
+	entry.Metadata["nested"] = map[string]any{"key": "value"}
+	if err := ValidateCatalogEntry(entry); err == nil {
+		t.Fatal("expected object metadata value to be rejected")
+	}
+
+	delete(entry.Metadata, "nested")
+	entry.Metadata["list"] = []any{"value"}
+	if err := ValidateCatalogEntry(entry); err == nil {
+		t.Fatal("expected array metadata value to be rejected")
+	}
+}
+
 func TestValidateCatalogEntryTrustManifest(t *testing.T) {
 	entry := CatalogEntry{
 		Identifier:  "urn:air:acme.com:server:weather",

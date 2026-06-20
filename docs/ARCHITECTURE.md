@@ -69,10 +69,11 @@ Cobra, Gin, GORM, and Postgres.
   `ard add openapi` translate real MCP server cards, A2A agent cards, Skill markdown
   files, and OpenAPI documents into ARD catalog entries.
 - Verification engine: schema-level checks cover `urn:air:`, required fields,
-  `url`/`data` exclusivity, URL syntax, representative query count, and minimal
-  catalog host metadata plus `trustManifest` structure, including `identityType` enum
-  validation, attestation/provenance structure validation, and URL identity host
-  alignment with the `urn:air:` publisher. URL artifacts can be pinned and verified with
+  `url`/`data` exclusivity, URL syntax, `updatedAt` date-time format, scalar metadata
+  values, representative query count, and minimal catalog host metadata plus
+  `trustManifest` structure, including `identityType` enum validation,
+  attestation/provenance structure validation, and URL identity host alignment with the
+  `urn:air:` publisher. URL artifacts can be pinned and verified with
   `trustManifest.sourceDigest`.
 
 ## Intended Repository Shape

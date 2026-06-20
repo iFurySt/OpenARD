@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+	"time"
 )
 
 const (
@@ -239,8 +240,31 @@ func ValidateCatalogEntry(entry CatalogEntry) error {
 	if queries := len(entry.RepresentativeQueries); queries > 0 && (queries < 2 || queries > 5) {
 		return fmt.Errorf("representativeQueries must contain 2 to 5 items when present")
 	}
+	if entry.UpdatedAt != "" {
+		if _, err := time.Parse(time.RFC3339Nano, entry.UpdatedAt); err != nil {
+			return fmt.Errorf("updatedAt must be a valid RFC3339 date-time: %w", err)
+		}
+	}
+	if err := validateMetadata(entry.Metadata); err != nil {
+		return err
+	}
 	if err := validateTrustManifest(entry.Identifier, entry.TrustManifest); err != nil {
 		return err
+	}
+	return nil
+}
+
+func validateMetadata(metadata map[string]any) error {
+	for key, value := range metadata {
+		switch value.(type) {
+		case nil, string, bool,
+			int, int8, int16, int32, int64,
+			uint, uint8, uint16, uint32, uint64,
+			float32, float64, json.Number:
+			continue
+		default:
+			return fmt.Errorf("metadata.%s must be a string, number, boolean, or null", key)
+		}
 	}
 	return nil
 }
