@@ -9,6 +9,7 @@ admin_token="${ARD_E2E_ADMIN_TOKEN:-test-token}"
 database_url="postgres://ard:ard@127.0.0.1:${postgres_port}/ard?sslmode=disable"
 registry_url="http://127.0.0.1:${registry_port}"
 export_file="$(mktemp /tmp/ard-e2e-export-XXXXXX.json)"
+referral_catalog_file="$(mktemp /tmp/ard-e2e-referral-catalog-XXXXXX.json)"
 policy_file="$(mktemp /tmp/ard-e2e-policy-XXXXXX.json)"
 tokens_file="$(mktemp /tmp/ard-e2e-tokens-XXXXXX.json)"
 mcp_card_file="$(mktemp /tmp/ard-e2e-mcp-card-XXXXXX.json)"
@@ -31,7 +32,7 @@ cleanup() {
     wait "${fixture_pid}" >/dev/null 2>&1 || true
   fi
   docker rm -f "${postgres_container}" >/dev/null 2>&1 || true
-  rm -f "${export_file}" "${policy_file}" "${tokens_file}" "${mcp_card_file}" "${skill_file}" "${openapi_file}"
+  rm -f "${export_file}" "${referral_catalog_file}" "${policy_file}" "${tokens_file}" "${mcp_card_file}" "${skill_file}" "${openapi_file}"
 }
 trap cleanup EXIT
 
@@ -72,6 +73,20 @@ cat >"${tokens_file}" <<'JSON'
     {"name": "publisher", "token": "publisher-token", "role": "publisher"},
     {"name": "reviewer", "token": "reviewer-token", "role": "reviewer"},
     {"name": "operator", "token": "operator-token", "role": "operator"}
+  ]
+}
+JSON
+cat >"${referral_catalog_file}" <<JSON
+{
+  "specVersion": "1.0",
+  "entries": [
+    {
+      "identifier": "urn:air:agent.localhost:registry:e2e-upstream",
+      "displayName": "E2E Upstream Registry",
+      "type": "application/ai-registry+json",
+      "url": "http://127.0.0.1:${registry_port}/search",
+      "description": "Local upstream registry referral used by the E2E flow."
+    }
   ]
 }
 JSON
@@ -135,6 +150,9 @@ grep -q "admin token is required" /tmp/ard-e2e-no-token.log
 bin/ardctl admin add catalog ./internal/catalog/testdata/acme-ai-catalog.json \
   --registry-url "${registry_url}" \
   --admin-token "${admin_token}"
+bin/ardctl admin add catalog "${referral_catalog_file}" \
+  --registry-url "${registry_url}" \
+  --admin-token "${admin_token}"
 bin/ardctl admin add mcp "${mcp_card_url}" \
   --publisher raw.githubusercontent.com \
   --pin-source-digest \
@@ -182,6 +200,9 @@ if [ -x "${conformance_bin}" ]; then
 fi
 
 bin/ardctl search memory --registry-url "${registry_url}" --kind mcp --json | grep -q "Agentmemory MCP"
+bin/ardctl search memory --registry-url "${registry_url}" --kind mcp --federation referrals --json >/tmp/ard-e2e-referrals-search.json
+grep -q '"referrals"' /tmp/ard-e2e-referrals-search.json
+grep -q "E2E Upstream Registry" /tmp/ard-e2e-referrals-search.json
 bin/ardctl search browser --registry-url "${registry_url}" --kind skill --json | grep -q "open-browser-use"
 bin/ardctl search pet --registry-url "${registry_url}" --kind openapi --json | grep -q "Swagger Petstore - OpenAPI 3.0"
 bin/ardctl search hello --registry-url "${registry_url}" --kind a2a --json | grep -q "Hello World Agent"

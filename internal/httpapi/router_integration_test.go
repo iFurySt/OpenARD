@@ -39,6 +39,13 @@ func TestRouterSearchWithPostgres(t *testing.T) {
 				Description:           "Weather forecast MCP server.",
 				RepresentativeQueries: []string{"what is the weather", "get a forecast"},
 			},
+			{
+				Identifier:  "urn:air:upstream.example.com:registry:public",
+				DisplayName: "Public Upstream Registry",
+				Type:        ard.TypeAIRegistry,
+				URL:         "https://upstream.example.com/search",
+				Description: "Upstream ARD registry for referral-mode federation.",
+			},
 		},
 	}, "router-test"); err != nil {
 		t.Fatalf("upsert catalog: %v", err)
@@ -72,6 +79,34 @@ func TestRouterSearchWithPostgres(t *testing.T) {
 	}
 	if parsed.Results[0].Type != ard.TypeMCPServerCard {
 		t.Fatalf("unexpected type: %s", parsed.Results[0].Type)
+	}
+
+	if len(parsed.Referrals) != 0 {
+		t.Fatalf("expected no referrals without federation mode, got %#v", parsed.Referrals)
+	}
+	federatedBody, _ := json.Marshal(ard.SearchRequest{
+		Query: ard.SearchQuery{
+			Text: "weather",
+		},
+		Federation: "referrals",
+		PageSize:   5,
+	})
+	federatedRequest := httptest.NewRequest(http.MethodPost, "/search", bytes.NewReader(federatedBody))
+	federatedRequest.Header.Set("Content-Type", "application/json")
+	federatedResponse := httptest.NewRecorder()
+	router.ServeHTTP(federatedResponse, federatedRequest)
+	if federatedResponse.Code != http.StatusOK {
+		t.Fatalf("expected federated HTTP 200, got %d: %s", federatedResponse.Code, federatedResponse.Body.String())
+	}
+	var federated ard.SearchResponse
+	if err := json.Unmarshal(federatedResponse.Body.Bytes(), &federated); err != nil {
+		t.Fatalf("decode federated response: %v", err)
+	}
+	if len(federated.Referrals) != 1 {
+		t.Fatalf("expected one referral, got %#v", federated.Referrals)
+	}
+	if federated.Referrals[0].Type != ard.TypeAIRegistry {
+		t.Fatalf("unexpected referral type: %s", federated.Referrals[0].Type)
 	}
 }
 

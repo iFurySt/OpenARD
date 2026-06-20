@@ -41,6 +41,7 @@ ardctl admin status urn:air:example.com:server:weather disabled --registry-url h
 ardctl admin review approve urn:air:example.com:server:weather --registry-url https://registry.example.com
 ardctl admin audit --registry-url https://registry.example.com --admin-token "$ARD_ADMIN_TOKEN"
 ard search "query observability logs" --kind mcp
+ard search "query observability logs" --federation referrals --json
 ard verify catalog https://example.com/.well-known/ai-catalog.json
 ard verify catalog ./ai-catalog.json --source-digests
 ```
@@ -80,11 +81,11 @@ API routes with an `ardctl admin` client. Admin flows can disable, reactivate, f
 entries, apply ingestion policy, review pending entries, and inspect mutation audit
 events without exposing inactive resources through public discovery. Server deployments
 can use a single admin token or role-scoped admin tokens. URL artifacts can be pinned and
-verified with `trustManifest.sourceDigest`. The registry also exposes request
-correlation, JSON access logs, and Prometheus-style `/metrics`. It builds three entry
-points: `ard` for the combined toolkit, `ardctl` for CLI/client operations, and
-`ard-server` for the registry server. CI runs formatting checks, tests, builds, and
-Postgres integration tests.
+verified with `trustManifest.sourceDigest`. Search supports client-followed federation
+referrals. The registry also exposes request correlation, JSON access logs, and
+Prometheus-style `/metrics`. It builds three entry points: `ard` for the combined
+toolkit, `ardctl` for CLI/client operations, and `ard-server` for the registry server. CI
+runs formatting checks, tests, builds, and Postgres integration tests.
 `make test-e2e` runs the real artifact onboarding flow with live MCP, Skill, OpenAPI,
 and policy-gate examples.
 

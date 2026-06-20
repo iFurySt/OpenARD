@@ -14,6 +14,9 @@ Cobra, Gin, GORM, and Postgres.
   management operations without server startup, and `cmd/ard-server` ships a dedicated
   registry server binary.
 - Client flow: `ard search` sends spec-shaped `SearchRequest` bodies to a registry.
+- Federation referrals: `POST /search` supports `federation=referrals` by returning
+  active `application/ai-registry+json` entries in `SearchResponse.referrals` for
+  client-followed federation.
 - Catalog ingestion: `ard add catalog` loads local or remote `ai-catalog.json` files,
   validates them, and persists entries.
 - Catalog export: `ardctl export catalog` writes persisted registry entries as a
@@ -122,7 +125,8 @@ boundary without changing HTTP contracts.
 - Search and ranking should consume normalized catalog entries, not protocol-specific
   objects.
 - Federation traversal should be bounded by depth, registry count, response size, and
-  timeout controls.
+  timeout controls. The current implementation returns referrals but does not yet perform
+  automatic upstream traversal.
 - Secrets and tokens may be used during request scope only; they must not be stored or
   emitted in plain text.
 - Admin API routes must remain disabled by default and require an authorized
@@ -175,7 +179,9 @@ conformance tool over older reference implementations. In particular:
 - Keep `score` strictly as semantic relevance, not a trust or safety signal.
 - Support web ingestion of `ai-catalog.json` catalogs as a required registry capability.
 - Keep `/explore` local-only and optional; if unsupported, return `501`.
-- Keep federation controlled by root-level `SearchRequest.federation`.
+- Keep federation controlled by root-level `SearchRequest.federation`. `referrals` mode
+  returns registry entries in `SearchResponse.referrals`; `auto` upstream merge is not
+  implemented yet.
 
 Do not vendor or fork the upstream spec content casually. If the implementation needs
 schemas or conformance tools in-repo, add a pinned, documented copy under a clearly named
@@ -191,5 +197,6 @@ third-party or generated directory and record the source commit.
 - Whether to vendor selected upstream spec artifacts, use a git submodule, or fetch pinned
   artifacts during development.
 - Whether to replace the MVP JSON ingestion policy with a richer policy engine.
+- Whether and how to implement automatic upstream search merge for `federation=auto`.
 
 When these decisions are made, update this file in the same task as the code.

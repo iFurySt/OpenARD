@@ -18,6 +18,7 @@ func newSearchCommand() *cobra.Command {
 	var kind string
 	var jsonOutput bool
 	var limit int
+	var federation string
 	command := &cobra.Command{
 		Use:   "search QUERY",
 		Short: "Search an ARD registry",
@@ -27,12 +28,15 @@ func newSearchCommand() *cobra.Command {
 			if kind != "" {
 				filter["type"] = []string{mediaTypeForKind(kind)}
 			}
+			if federation != "none" && federation != "referrals" && federation != "auto" {
+				return fmt.Errorf("federation must be one of: none, referrals, auto")
+			}
 			response, raw, err := searchRegistry(registryURL, ard.SearchRequest{
 				Query: ard.SearchQuery{
 					Text:   args[0],
 					Filter: filter,
 				},
-				Federation: "none",
+				Federation: federation,
 				PageSize:   limit,
 			})
 			if err != nil {
@@ -61,6 +65,7 @@ func newSearchCommand() *cobra.Command {
 	command.Flags().StringVar(&kind, "kind", "", "Filter by result kind: mcp, a2a, skill, catalog, registry")
 	command.Flags().BoolVar(&jsonOutput, "json", false, "Print raw ARD SearchResponse JSON")
 	command.Flags().IntVar(&limit, "limit", 10, "Maximum search results")
+	command.Flags().StringVar(&federation, "federation", "none", "Federation mode: none, referrals, or auto")
 	return command
 }
 

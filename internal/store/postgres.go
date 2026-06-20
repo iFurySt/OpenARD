@@ -173,6 +173,30 @@ func (store *Store) Search(ctx context.Context, request ard.SearchRequest, sourc
 	return results, nil
 }
 
+func (store *Store) RegistryReferrals(ctx context.Context, limit int) ([]ard.CatalogEntry, error) {
+	if limit <= 0 || limit > 100 {
+		limit = 10
+	}
+	var records []CatalogEntryRecord
+	if err := store.db.WithContext(ctx).
+		Where("lifecycle_status = ?", LifecycleStatusActive).
+		Where("type IN ?", []string{ard.TypeAIRegistry, ard.TypeAIRegistryBare}).
+		Order("display_name ASC").
+		Limit(limit).
+		Find(&records).Error; err != nil {
+		return nil, err
+	}
+	entries := make([]ard.CatalogEntry, 0, len(records))
+	for _, record := range records {
+		entry, err := record.ToCatalogEntry()
+		if err != nil {
+			return nil, err
+		}
+		entries = append(entries, entry)
+	}
+	return entries, nil
+}
+
 func (store *Store) List(ctx context.Context, limit int) ([]ard.CatalogEntry, int64, error) {
 	return store.ListEntries(ctx, ListOptions{Limit: limit})
 }

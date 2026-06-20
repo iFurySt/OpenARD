@@ -131,7 +131,19 @@ func (server Server) search(context *gin.Context) {
 		})
 		return
 	}
-	context.JSON(http.StatusOK, ard.SearchResponse{Results: results})
+	response := ard.SearchResponse{Results: results}
+	if request.NormalizedFederation() == "referrals" {
+		referrals, err := server.store.RegistryReferrals(context.Request.Context(), request.NormalizedPageSize())
+		if err != nil {
+			context.JSON(http.StatusInternalServerError, gin.H{
+				"errorCode": "INTERNAL_ERROR",
+				"message":   err.Error(),
+			})
+			return
+		}
+		response.Referrals = referrals
+	}
+	context.JSON(http.StatusOK, response)
 }
 
 func (server Server) agents(context *gin.Context) {
