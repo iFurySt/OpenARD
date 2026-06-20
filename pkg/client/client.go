@@ -1,4 +1,3 @@
-// Package client provides a small HTTP client for ARD registry surfaces.
 package client
 
 import (

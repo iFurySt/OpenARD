@@ -15,7 +15,8 @@ Cobra, Gin, GORM, and Postgres.
   registry server binary.
 - Public Go SDK: `pkg/ard` exposes spec-shaped ARD model aliases and validation helpers,
   while `pkg/client` provides an embeddable HTTP client for public discovery and
-  token-protected admin registry surfaces.
+  token-protected admin registry surfaces. `docs/SDK_COMPATIBILITY.md` defines the
+  public import paths, pre-1.0 compatibility expectations, and unstable boundaries.
 - Container distribution: the root `Dockerfile` builds all three binaries and defaults
   to the dedicated `ard-server` runtime entrypoint. `infra/compose.yaml` runs the
   registry with Postgres for local self-hosted trials.
@@ -226,6 +227,8 @@ boundary without changing HTTP contracts.
   `Catalog`, and `Health` methods with typed responses from `pkg/ard`. It also exposes
   token-protected admin methods for entry list/upsert/delete, catalog import/export,
   review decisions, lifecycle status, audit listing, and audit hash-chain verification.
+  `make test-public-go-client` verifies these public packages from an external Go
+  module.
 - CLI equivalents: `serve`, `add catalog`, `add mcp`, `add a2a`, `add skill`,
   `add openapi`, `crawl`, `admin`, `browse`, `export catalog`, `list`, `remove`,
   `verify catalog`, and `search` are implemented. `ardctl browse` calls public

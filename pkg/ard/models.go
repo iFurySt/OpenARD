@@ -1,5 +1,3 @@
-// Package ard exposes the public Agentic Resource Discovery data model used by
-// the registry, CLI, and Go client SDK.
 package ard
 
 import internalard "github.com/ifuryst/ard/internal/ard"

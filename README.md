@@ -106,6 +106,8 @@ Import paths:
 - `github.com/ifuryst/ard/pkg/ard`
 - `github.com/ifuryst/ard/pkg/client`
 
+Compatibility policy: [docs/SDK_COMPATIBILITY.md](docs/SDK_COMPATIBILITY.md).
+
 ## Status
 
 This repository is in early implementation. Current milestones include a Go CLI,

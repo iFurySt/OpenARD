@@ -4,6 +4,7 @@
 
 | Date | Area | User Impact | Change Summary |
 | --- | --- | --- | --- |
+| 2026-06-21 | SDK | Go consumers can see which import paths and behaviors are intended to be stable before adopting the SDK. | Added `docs/SDK_COMPATIBILITY.md`, package documentation for `pkg/ard` and `pkg/client`, README guidance, and repository routing for SDK compatibility expectations. |
 | 2026-06-21 | Search | Clients can continue server-side auto federation across local and upstream registry pages. | Added opaque composite `pageToken` support for `federation=auto`, preserving local/upstream cursors plus buffered candidates so score-ranked pagination does not skip unreturned results. |
 | 2026-06-21 | Governance | Enterprises can require more than one reviewer before a pending resource becomes discoverable. | Added `requiredApprovals` policy support, distinct reviewer approval tracking, CLI/SDK approval counts, integration tests, and real E2E coverage across live Skill policy flows. |
 | 2026-06-21 | API | Registry inventories can combine alternatives without multiple client-side requests. | Added `OR` and parenthesized grouping to shared `/agents`, `ardctl browse`, and `ardctl list` filters, with parser, Postgres, HTTP, and real E2E coverage across live Skill/OpenAPI artifacts. |
