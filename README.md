@@ -1,6 +1,6 @@
 # ard
 
-Neutral, self-hosted Agentic Resource Discovery registry and management toolkit.
+Neutral self-hosted registry and toolkit for Agentic Resource Discovery.
 
 `ard` is an independent open-source implementation of the ARD ecosystem. It is being
 designed for enterprises and agent platforms that need to discover, verify, govern, and
