@@ -203,19 +203,31 @@ func ValidateCatalogEntry(entry CatalogEntry) error {
 	if queries := len(entry.RepresentativeQueries); queries > 0 && (queries < 2 || queries > 5) {
 		return fmt.Errorf("representativeQueries must contain 2 to 5 items when present")
 	}
-	if err := validateTrustManifest(entry.TrustManifest); err != nil {
+	if err := validateTrustManifest(entry.Identifier, entry.TrustManifest); err != nil {
 		return err
 	}
 	return nil
 }
 
-func validateTrustManifest(trustManifest map[string]any) error {
+func validateTrustManifest(identifier string, trustManifest map[string]any) error {
 	if trustManifest == nil {
 		return nil
 	}
 	identity, ok := trustManifest["identity"].(string)
-	if !ok || strings.TrimSpace(identity) == "" {
+	identity = strings.TrimSpace(identity)
+	if !ok || identity == "" {
 		return errors.New("trustManifest.identity is required when trustManifest is present")
+	}
+	if parsed, err := url.Parse(identity); err == nil && parsed.Scheme != "" {
+		switch parsed.Scheme {
+		case "http", "https":
+			if parsed.Hostname() == "" {
+				return errors.New("trustManifest.identity URL must include a host")
+			}
+			if !strings.EqualFold(parsed.Hostname(), Publisher(identifier)) {
+				return fmt.Errorf("trustManifest.identity host %q must match identifier publisher %q", parsed.Hostname(), Publisher(identifier))
+			}
+		}
 	}
 	if sourceDigest, ok := trustManifest["sourceDigest"].(string); ok && sourceDigest != "" {
 		if !sha256DigestPattern.MatchString(sourceDigest) {

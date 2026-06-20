@@ -38,6 +38,7 @@ Use this document to make secure defaults explicit and legible to agents.
 ## Trust Verification
 
 - `--pin-source-digest` can add `trustManifest.sourceDigest` for URL artifacts.
+- HTTP(S) `trustManifest.identity` hosts must match the `urn:air:` publisher domain.
 - `ard verify catalog --source-digests` fetches URL artifacts and verifies pinned
   `sha256` source digests.
 - Source digest verification proves byte integrity for the fetched URL only. It does not

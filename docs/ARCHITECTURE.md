@@ -70,8 +70,8 @@ Cobra, Gin, GORM, and Postgres.
   files, and OpenAPI documents into ARD catalog entries.
 - Verification engine: schema-level checks cover `urn:air:`, required fields,
   `url`/`data` exclusivity, URL syntax, representative query count, and minimal
-  `trustManifest` structure. URL artifacts can be pinned and verified with
-  `trustManifest.sourceDigest`.
+  `trustManifest` structure, including URL identity host alignment with the `urn:air:`
+  publisher. URL artifacts can be pinned and verified with `trustManifest.sourceDigest`.
 
 ## Intended Repository Shape
 
@@ -214,6 +214,8 @@ conformance tool over older reference implementations. In particular:
   type.
 - Treat `trustManifest.sourceDigest` as source artifact integrity metadata. It verifies
   bytes fetched from the entry URL; it is not a signature or identity proof.
+- Treat HTTP(S) `trustManifest.identity` host matching as catalog metadata consistency,
+  not as proof of publisher ownership.
 - Keep `score` strictly as semantic relevance, not a trust or safety signal.
 - Support web ingestion of `ai-catalog.json` catalogs as a required registry capability.
 - Keep `/explore` local-only and optional; if unsupported, return `501`.

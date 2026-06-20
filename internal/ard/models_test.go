@@ -77,6 +77,33 @@ func TestValidateCatalogEntryTrustManifest(t *testing.T) {
 	}
 }
 
+func TestValidateCatalogEntryTrustManifestIdentityHost(t *testing.T) {
+	validDigest := "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+	entry := CatalogEntry{
+		Identifier:  "urn:air:acme.com:server:weather",
+		DisplayName: "Weather Data Node",
+		Type:        TypeMCPServerCard,
+		URL:         "https://api.acme.com/mcp/weather.json",
+		TrustManifest: map[string]any{
+			"identity":     "https://acme.com/security",
+			"sourceDigest": validDigest,
+		},
+	}
+	if err := ValidateCatalogEntry(entry); err != nil {
+		t.Fatalf("expected matching identity host: %v", err)
+	}
+
+	entry.TrustManifest["identity"] = "https://evil.example.com"
+	if err := ValidateCatalogEntry(entry); err == nil {
+		t.Fatal("expected mismatched identity host to be rejected")
+	}
+
+	entry.TrustManifest["identity"] = "did:web:acme.com"
+	if err := ValidateCatalogEntry(entry); err != nil {
+		t.Fatalf("expected non-URL identity to remain accepted for future resolvers: %v", err)
+	}
+}
+
 func TestSearchFilterAcceptsScalarAndArray(t *testing.T) {
 	var request SearchRequest
 	body := []byte(`{
