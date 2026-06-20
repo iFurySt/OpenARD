@@ -96,9 +96,24 @@ type ListOptions struct {
 	Limit                    int
 	PageToken                string
 	Type                     string
+	Filter                   ListFilter
+	OrderBy                  ListOrder
 	Status                   string
 	IncludeInactive          bool
 	IncludeLifecycleMetadata bool
+}
+
+type ListFilter struct {
+	DisplayName  []string
+	Types        []string
+	PublisherIDs []string
+	CreatedAfter *time.Time
+	UpdatedAfter *time.Time
+}
+
+type ListOrder struct {
+	Field     string
+	Direction string
 }
 
 type ListEntriesPage struct {
@@ -300,6 +315,7 @@ func (store *Store) ListEntriesPage(ctx context.Context, options ListOptions) (L
 		if options.Type != "" {
 			query = query.Where("type = ?", options.Type)
 		}
+		query = applyListFilter(query, options.Filter)
 		if options.Status != "" {
 			query = query.Where("lifecycle_status = ?", options.Status)
 		} else if !options.IncludeInactive {
@@ -312,7 +328,7 @@ func (store *Store) ListEntriesPage(ctx context.Context, options ListOptions) (L
 		return ListEntriesPage{}, err
 	}
 	var records []CatalogEntryRecord
-	if err := listQuery().Order("display_name ASC").Offset(offset).Limit(limit + 1).Find(&records).Error; err != nil {
+	if err := listQuery().Order(listOrderClause(options.OrderBy)).Offset(offset).Limit(limit + 1).Find(&records).Error; err != nil {
 		return ListEntriesPage{}, err
 	}
 	nextToken := ""
@@ -329,6 +345,85 @@ func (store *Store) ListEntriesPage(ctx context.Context, options ListOptions) (L
 		entries = append(entries, entry)
 	}
 	return ListEntriesPage{Entries: entries, Total: total, NextPageToken: nextToken}, nil
+}
+
+func applyListFilter(query *gorm.DB, filter ListFilter) *gorm.DB {
+	if len(filter.DisplayName) > 0 {
+		query = query.Where(orTextContainsClause("display_name", len(filter.DisplayName)), likeValues(filter.DisplayName)...)
+	}
+	if len(filter.Types) > 0 {
+		query = query.Where("type IN ?", filter.Types)
+	}
+	if len(filter.PublisherIDs) > 0 {
+		query = query.Where(orPublisherClause(len(filter.PublisherIDs)), publisherLikeValues(filter.PublisherIDs)...)
+	}
+	if filter.CreatedAfter != nil {
+		query = query.Where("created_at > ?", *filter.CreatedAfter)
+	}
+	if filter.UpdatedAfter != nil {
+		query = query.Where("updated_at > ?", *filter.UpdatedAfter)
+	}
+	return query
+}
+
+func listOrderClause(order ListOrder) string {
+	field := "display_name"
+	switch order.Field {
+	case "displayName", "":
+		field = "display_name"
+	case "type":
+		field = "type"
+	case "createdAt":
+		field = "created_at"
+	case "updatedAt":
+		field = "updated_at"
+	case "publisherId":
+		field = "identifier"
+	}
+	direction := strings.ToUpper(order.Direction)
+	if direction != "DESC" {
+		direction = "ASC"
+	}
+	return field + " " + direction
+}
+
+func orTextContainsClause(column string, count int) string {
+	clauses := make([]string, 0, count)
+	for range count {
+		clauses = append(clauses, column+" ILIKE ?")
+	}
+	return "(" + strings.Join(clauses, " OR ") + ")"
+}
+
+func orPublisherClause(count int) string {
+	clauses := make([]string, 0, count)
+	for range count {
+		clauses = append(clauses, "identifier LIKE ? ESCAPE '\\'")
+	}
+	return "(" + strings.Join(clauses, " OR ") + ")"
+}
+
+func likeValues(values []string) []any {
+	arguments := make([]any, 0, len(values))
+	for _, value := range values {
+		arguments = append(arguments, "%"+escapeLike(value)+"%")
+	}
+	return arguments
+}
+
+func publisherLikeValues(values []string) []any {
+	arguments := make([]any, 0, len(values))
+	for _, value := range values {
+		arguments = append(arguments, "urn:air:"+escapeLike(value)+":%")
+	}
+	return arguments
+}
+
+func escapeLike(value string) string {
+	value = strings.ReplaceAll(value, `\`, `\\`)
+	value = strings.ReplaceAll(value, `%`, `\%`)
+	value = strings.ReplaceAll(value, `_`, `\_`)
+	return value
 }
 
 func (store *Store) GetEntry(ctx context.Context, identifier string, includeLifecycleMetadata bool) (ard.CatalogEntry, bool, error) {

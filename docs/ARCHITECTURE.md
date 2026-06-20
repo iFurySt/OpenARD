@@ -24,8 +24,9 @@ Cobra, Gin, GORM, and Postgres.
   facet requests instead of silently ignoring malformed introspection options.
 - Pagination: `POST /search`, `GET /agents`, and admin list/review/audit endpoints
   return opaque offset page tokens when additional local results are available.
-- Browse flow: `GET /agents` validates public query parameters instead of ignoring
-  malformed pagination or unsupported deterministic filter/order options.
+- Browse flow: `GET /agents` validates public query parameters and supports deterministic
+  filtering plus whitelisted ordering instead of ignoring malformed pagination or browse
+  options.
 - Federation referrals: `POST /search` supports `federation=referrals` by returning
   active `application/ai-registry+json` entries in `SearchResponse.referrals` for
   client-followed federation.
@@ -196,8 +197,9 @@ boundary without changing HTTP contracts.
 - `POST /explore`: optional; implemented for local facet aggregation with request,
   query, and facet known-field validation.
 - `GET /agents`: optional deterministic browse endpoint with validated `pageSize` and
-  `pageToken`. `filter` and `orderBy` are recognized as spec parameters but return
-  `400` until deterministic filtering and ordering are implemented.
+  `pageToken`, EBNF-like `filter` support for `displayName`, `type`, `publisherId`,
+  `createdAfter`, and `updatedAfter`, plus whitelisted `orderBy` for display name, type,
+  publisher, creation time, and update time.
 - `GET /health`: deployment health. Implemented.
 - `GET /metrics`: Prometheus-style operational metrics. Implemented.
 - `/admin/*`: implementation-specific management routes; disabled unless an admin token

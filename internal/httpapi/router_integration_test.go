@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"sync"
 	"testing"
@@ -422,18 +423,49 @@ func TestRouterAgentsAndExploreWithPostgres(t *testing.T) {
 		t.Fatalf("expected invalid /agents pageToken HTTP 400, got %d: %s", invalidListPageTokenResponse.Code, invalidListPageTokenResponse.Body.String())
 	}
 
-	unsupportedListFilterRequest := httptest.NewRequest(http.MethodGet, "/agents?filter=type%20%3D%20%27application%2Fmcp-server-card%2Bjson%27", nil)
-	unsupportedListFilterResponse := httptest.NewRecorder()
-	router.ServeHTTP(unsupportedListFilterResponse, unsupportedListFilterRequest)
-	if unsupportedListFilterResponse.Code != http.StatusBadRequest {
-		t.Fatalf("expected unsupported /agents filter HTTP 400, got %d: %s", unsupportedListFilterResponse.Code, unsupportedListFilterResponse.Body.String())
+	filteredListRequest := httptest.NewRequest(http.MethodGet, "/agents?filter="+url.QueryEscape("type = 'application/mcp-server-card+json' AND displayName = 'Weather Facet'"), nil)
+	filteredListResponse := httptest.NewRecorder()
+	router.ServeHTTP(filteredListResponse, filteredListRequest)
+	if filteredListResponse.Code != http.StatusOK {
+		t.Fatalf("expected filtered /agents HTTP 200, got %d: %s", filteredListResponse.Code, filteredListResponse.Body.String())
+	}
+	var filteredList ard.ListResponse
+	if err := json.Unmarshal(filteredListResponse.Body.Bytes(), &filteredList); err != nil {
+		t.Fatalf("decode filtered list response: %v", err)
+	}
+	if len(filteredList.Items) != 1 || filteredList.Items[0].DisplayName != "Weather Facet MCP" {
+		t.Fatalf("expected filtered list to return Weather Facet MCP, got %#v", filteredList.Items)
 	}
 
-	unsupportedListOrderRequest := httptest.NewRequest(http.MethodGet, "/agents?orderBy=updatedAt%20DESC", nil)
-	unsupportedListOrderResponse := httptest.NewRecorder()
-	router.ServeHTTP(unsupportedListOrderResponse, unsupportedListOrderRequest)
-	if unsupportedListOrderResponse.Code != http.StatusBadRequest {
-		t.Fatalf("expected unsupported /agents orderBy HTTP 400, got %d: %s", unsupportedListOrderResponse.Code, unsupportedListOrderResponse.Body.String())
+	publisherOrderedListRequest := httptest.NewRequest(http.MethodGet, "/agents?filter="+url.QueryEscape("publisherId = 'example.com'")+"&orderBy="+url.QueryEscape("displayName DESC"), nil)
+	publisherOrderedListResponse := httptest.NewRecorder()
+	router.ServeHTTP(publisherOrderedListResponse, publisherOrderedListRequest)
+	if publisherOrderedListResponse.Code != http.StatusOK {
+		t.Fatalf("expected ordered /agents HTTP 200, got %d: %s", publisherOrderedListResponse.Code, publisherOrderedListResponse.Body.String())
+	}
+	var publisherOrderedList ard.ListResponse
+	if err := json.Unmarshal(publisherOrderedListResponse.Body.Bytes(), &publisherOrderedList); err != nil {
+		t.Fatalf("decode ordered list response: %v", err)
+	}
+	if len(publisherOrderedList.Items) < 2 {
+		t.Fatalf("expected at least two publisher-filtered list entries, got %#v", publisherOrderedList.Items)
+	}
+	if publisherOrderedList.Items[0].DisplayName != "Weather Facet MCP" {
+		t.Fatalf("expected displayName DESC order to put Weather Facet MCP first, got %#v", publisherOrderedList.Items)
+	}
+
+	invalidListFilterRequest := httptest.NewRequest(http.MethodGet, "/agents?filter="+url.QueryEscape("unsupported = 'value'"), nil)
+	invalidListFilterResponse := httptest.NewRecorder()
+	router.ServeHTTP(invalidListFilterResponse, invalidListFilterRequest)
+	if invalidListFilterResponse.Code != http.StatusBadRequest {
+		t.Fatalf("expected invalid /agents filter HTTP 400, got %d: %s", invalidListFilterResponse.Code, invalidListFilterResponse.Body.String())
+	}
+
+	invalidListOrderRequest := httptest.NewRequest(http.MethodGet, "/agents?orderBy=score%20DESC", nil)
+	invalidListOrderResponse := httptest.NewRecorder()
+	router.ServeHTTP(invalidListOrderResponse, invalidListOrderRequest)
+	if invalidListOrderResponse.Code != http.StatusBadRequest {
+		t.Fatalf("expected invalid /agents orderBy HTTP 400, got %d: %s", invalidListOrderResponse.Code, invalidListOrderResponse.Body.String())
 	}
 
 	unknownListParameterRequest := httptest.NewRequest(http.MethodGet, "/agents?page=1", nil)
