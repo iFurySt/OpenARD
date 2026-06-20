@@ -289,6 +289,7 @@ func (store *Store) SearchPage(ctx context.Context, request ard.SearchRequest, s
 			Source:       record.Source,
 		})
 	}
+	orderSearchResults(results)
 	if offset > len(results) {
 		offset = len(results)
 	}
@@ -1223,6 +1224,26 @@ func relevanceScore(entry ard.CatalogEntry, text string) int {
 		return 0
 	}
 	return 50 + (50 * matches / len(terms))
+}
+
+func orderSearchResults(results []ard.SearchResult) {
+	sort.SliceStable(results, func(leftIndex int, rightIndex int) bool {
+		left := results[leftIndex]
+		right := results[rightIndex]
+		if left.Score != right.Score {
+			return left.Score > right.Score
+		}
+		if left.Identifier != right.Identifier {
+			return left.Identifier < right.Identifier
+		}
+		if left.DisplayName != right.DisplayName {
+			return left.DisplayName < right.DisplayName
+		}
+		if left.Source != right.Source {
+			return left.Source < right.Source
+		}
+		return leftIndex < rightIndex
+	})
 }
 
 func contains(values []string, target string) bool {

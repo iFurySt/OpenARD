@@ -28,6 +28,7 @@ func TestPostgresImportAndSearch(t *testing.T) {
 		[]string{
 			"urn:air:acme.com:server:weather",
 			"urn:air:acme.com:agent:assistant",
+			"urn:air:acme.com:agent:weather-faq",
 			"urn:air:acme.com:server:governed-update",
 			"urn:air:review.acme.com:server:pending-weather",
 		},
@@ -59,6 +60,14 @@ func TestPostgresImportAndSearch(t *testing.T) {
 				URL:                   "https://api.acme.com/agents/assistant.json",
 				Description:           "General-purpose corporate A2A assistant.",
 				RepresentativeQueries: []string{"draft an email", "summarize unread messages"},
+			},
+			{
+				Identifier:            "urn:air:acme.com:agent:weather-faq",
+				DisplayName:           "Weather FAQ Assistant",
+				Type:                  ard.TypeA2AAgentCard,
+				URL:                   "https://api.acme.com/agents/weather-faq.json",
+				Description:           "Answers common weather questions.",
+				RepresentativeQueries: []string{"weather glossary", "weather help"},
 			},
 		},
 	}
@@ -135,6 +144,25 @@ func TestPostgresImportAndSearch(t *testing.T) {
 	}
 	if results[0].Score <= 0 {
 		t.Fatalf("expected positive relevance score, got %d", results[0].Score)
+	}
+
+	ranked, err := registryStore.Search(ctx, ard.SearchRequest{
+		Query: ard.SearchQuery{
+			Text: "weather telemetry",
+		},
+		PageSize: 10,
+	}, "integration-test")
+	if err != nil {
+		t.Fatalf("ranked search: %v", err)
+	}
+	if len(ranked) < 2 {
+		t.Fatalf("expected multiple ranked results, got %#v", ranked)
+	}
+	if ranked[0].Identifier != "urn:air:acme.com:server:weather" {
+		t.Fatalf("expected highest score weather server first, got %#v", ranked)
+	}
+	if ranked[0].Score <= ranked[1].Score {
+		t.Fatalf("expected descending scores, got %#v then %#v", ranked[0], ranked[1])
 	}
 
 	updated, err := registryStore.SetEntryStatus(ctx, "urn:air:acme.com:server:weather", LifecycleStatusDisabled)

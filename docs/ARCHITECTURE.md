@@ -161,9 +161,11 @@ ARD /search API + CLI client
 ```
 
 The first storage target is Postgres through GORM. Search is currently simple
-case-insensitive text recall over persisted `search_text`, with score computed as
-semantic relevance approximation. More advanced ranking can replace this behind the store
-boundary without changing HTTP contracts.
+case-insensitive text recall over persisted `search_text`, with score computed as a
+deterministic semantic relevance approximation. Local results are ordered by descending
+score and stable catalog fields. `docs/SEARCH.md` records the first-release search
+contract. More advanced ranking can replace this behind the store boundary without
+changing HTTP contracts.
 
 ## Core Data Flow
 
@@ -296,7 +298,6 @@ third-party or generated directory and record the source commit.
 
 ## Open Decisions
 
-- Ranking strategy for the first release.
 - Trust manifest verification depth for MVP.
 - Whether to add an embedded non-Postgres development mode.
 - Whether to vendor selected upstream spec artifacts, use a git submodule, or fetch pinned

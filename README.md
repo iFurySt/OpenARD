@@ -163,6 +163,7 @@ See:
 - [Admin Authorization](docs/ADMIN_AUTH.md)
 - [Deployment](docs/DEPLOYMENT.md)
 - [Product Sense](docs/PRODUCT_SENSE.md)
+- [Search](docs/SEARCH.md)
 - [Policy](docs/POLICY.md)
 - [Trust Verification](docs/TRUST.md)
 - [ARD Spec Working Notes](docs/references/ard-spec-working-notes.md)
