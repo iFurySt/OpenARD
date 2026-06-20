@@ -4,6 +4,7 @@
 
 | Date | Area | User Impact | Change Summary |
 | --- | --- | --- | --- |
+| 2026-06-21 | Security | Enterprises can fail catalog verification when URL artifacts are not pinned. | Added `ard verify catalog --require-source-digests`, which requires every URL-delivered entry to include `trustManifest.sourceDigest` and verifies all pinned source digests; embedded `data` entries remain exempt. |
 | 2026-06-21 | SDK | Go consumers get stronger assurance that the public SDK can be imported and used outside the repository. | Expanded `make test-public-go-client` to create an external module that exercises discovery, catalog, health, explore, admin mutation/review/audit/delete, validation helpers, publisher helpers, and `HTTPError` handling. |
 | 2026-06-21 | Release | Operators can identify exactly which registry binary is running or packaged. | Added embedded build metadata for all binaries, `version` CLI commands, `ard-server --version`, startup log metadata, and `/health` version/commit/build date fields; release packaging, Docker builds, SDK health responses, and tests now carry the same metadata. |
 | 2026-06-21 | Release | Release consumers can verify where tagged archives and SBOMs came from. | Added a `v*` tag release workflow that packages artifacts, verifies checksums, publishes GitHub releases, and generates signed GitHub artifact attestations for provenance plus SBOM; added workflow invariant checks to CI. |

@@ -25,11 +25,22 @@ type SourceDigestResult struct {
 	Verified   bool   `json:"verified"`
 }
 
+type SourceDigestOptions struct {
+	RequirePinnedURLArtifacts bool
+}
+
 func VerifySourceDigests(ctx context.Context, catalog ard.Catalog) ([]SourceDigestResult, error) {
+	return VerifySourceDigestsWithOptions(ctx, catalog, SourceDigestOptions{})
+}
+
+func VerifySourceDigestsWithOptions(ctx context.Context, catalog ard.Catalog, options SourceDigestOptions) ([]SourceDigestResult, error) {
 	results := []SourceDigestResult{}
 	for _, entry := range catalog.Entries {
 		expected := trustString(entry.TrustManifest, "sourceDigest")
 		if expected == "" {
+			if options.RequirePinnedURLArtifacts && entry.URL != "" {
+				return results, fmt.Errorf("%s: sourceDigest required for url delivery", entry.Identifier)
+			}
 			continue
 		}
 		if entry.URL == "" {

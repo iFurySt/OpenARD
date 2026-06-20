@@ -130,3 +130,46 @@ func TestVerifySourceDigestsRejectsMismatch(t *testing.T) {
 		t.Fatalf("expected mismatch error, got %v", err)
 	}
 }
+
+func TestVerifySourceDigestsCanRequirePinnedURLArtifacts(t *testing.T) {
+	_, err := VerifySourceDigestsWithOptions(context.Background(), ard.Catalog{
+		SpecVersion: "1.0",
+		Entries: []ard.CatalogEntry{
+			{
+				Identifier:  "urn:air:example.com:agent:test",
+				DisplayName: "Test Agent",
+				Type:        ard.TypeA2AAgentCard,
+				URL:         "https://example.com/agent.json",
+				TrustManifest: map[string]any{
+					"identity": "https://example.com",
+				},
+			},
+		},
+	}, SourceDigestOptions{RequirePinnedURLArtifacts: true})
+	if err == nil || !strings.Contains(err.Error(), "sourceDigest required for url delivery") {
+		t.Fatalf("expected missing sourceDigest error, got %v", err)
+	}
+}
+
+func TestVerifySourceDigestsRequirementSkipsEmbeddedData(t *testing.T) {
+	results, err := VerifySourceDigestsWithOptions(context.Background(), ard.Catalog{
+		SpecVersion: "1.0",
+		Entries: []ard.CatalogEntry{
+			{
+				Identifier:  "urn:air:example.com:skill:test",
+				DisplayName: "Test Skill",
+				Type:        ard.TypeAISkill,
+				Data:        map[string]any{"markdown": "# Test"},
+				TrustManifest: map[string]any{
+					"identity": "https://example.com",
+				},
+			},
+		},
+	}, SourceDigestOptions{RequirePinnedURLArtifacts: true})
+	if err != nil {
+		t.Fatalf("embedded data should not require sourceDigest: %v", err)
+	}
+	if len(results) != 0 {
+		t.Fatalf("unexpected results: %#v", results)
+	}
+}

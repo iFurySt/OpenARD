@@ -62,6 +62,9 @@ Use this document to make secure defaults explicit and legible to agents.
   domain.
 - `ard verify catalog --source-digests` fetches URL artifacts and verifies pinned
   `sha256` source digests.
+- `ard verify catalog --require-source-digests` requires every URL-delivered entry to
+  carry `trustManifest.sourceDigest` and verifies those digests. Embedded `data`
+  entries are exempt.
 - Source digest verification proves byte integrity for the fetched URL only. It does not
   prove publisher identity, trust schema authority, attestation truth, signature
   validity, runtime safety, or compliance status.

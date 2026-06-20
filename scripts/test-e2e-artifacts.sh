@@ -471,6 +471,11 @@ bin/ard verify catalog "${export_file}" --json | grep -q '"valid": true'
 bin/ard verify catalog "${export_file}" --source-digests --json >/tmp/ard-e2e-verify-digests.json
 grep -q '"sourceDigestsVerified": 1' /tmp/ard-e2e-verify-digests.json
 grep -q '"verified": true' /tmp/ard-e2e-verify-digests.json
+if bin/ard verify catalog "${export_file}" --require-source-digests >/tmp/ard-e2e-require-digests.out 2>/tmp/ard-e2e-require-digests.err; then
+  echo "strict source digest verification unexpectedly passed" >&2
+  exit 1
+fi
+grep -q "sourceDigest required for url delivery" /tmp/ard-e2e-require-digests.err
 
 if [ -x "${conformance_bin}" ]; then
   "${conformance_bin}" manifest "${export_file}"

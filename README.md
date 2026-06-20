@@ -55,6 +55,7 @@ ard search "query observability logs" --federation referrals --json
 ard search "query observability logs" --federation auto --json
 ard verify catalog https://example.com/.well-known/ai-catalog.json
 ard verify catalog ./ai-catalog.json --source-digests
+ard verify catalog ./ai-catalog.json --require-source-digests
 ```
 
 ## Try It
@@ -81,6 +82,7 @@ bin/ardctl --database-url "$DATABASE_URL" list --filter "capabilities = 'Forecas
 bin/ardctl --database-url "$DATABASE_URL" list --filter "tags contains 'weath' AND capabilities != 'BlockedTool'"
 bin/ardctl --database-url "$DATABASE_URL" list --filter "type = 'application/openapi+json' OR (tags = 'skill' AND metadata.adapter = 'skill')"
 bin/ard verify catalog ./internal/catalog/testdata/acme-ai-catalog.json
+bin/ard verify catalog ./ai-catalog.json --require-source-digests
 bin/ard --database-url "$DATABASE_URL" crawl https://example.com/
 bin/ardctl --database-url "$DATABASE_URL" export catalog -o ai-catalog.json
 

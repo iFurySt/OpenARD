@@ -35,10 +35,14 @@ Use:
 
 ```sh
 ard verify catalog ./ai-catalog.json --source-digests
+ard verify catalog ./ai-catalog.json --require-source-digests
 ```
 
 When `--source-digests` is enabled, `ard` fetches each URL entry that has
 `trustManifest.sourceDigest`, computes `sha256`, and fails if the digest does not match.
+When `--require-source-digests` is enabled, every URL-delivered entry must have
+`trustManifest.sourceDigest`; embedded `data` entries are exempt because they do not
+have a retrievable source URL.
 
 ## Current Scope
 
@@ -67,6 +71,8 @@ When `--source-digests` is enabled, `ard` fetches each URL entry that has
   `trustManifest.trustSchema`, attestation items, and provenance items. The only
   accepted top-level extension is `trustManifest.sourceDigest`.
 - Implemented: URL artifact source digest verification.
+- Implemented: strict URL artifact source digest requirements with
+  `ard verify catalog --require-source-digests`.
 - Implemented: admin audit event hash chaining and chain verification.
 - Not implemented yet: attestation document fetch or content verification.
 - Not implemented yet: detached JWS signature verification.

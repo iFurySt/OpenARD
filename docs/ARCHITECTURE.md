@@ -105,7 +105,8 @@ Cobra, Gin, GORM, and Postgres.
   validation, schema-aligned known-field enforcement, `trustSchema`/signature shape
   validation, attestation/provenance structure validation, and URL identity host
   alignment with the `urn:air:` publisher. URL artifacts can be pinned and verified with
-  `trustManifest.sourceDigest`.
+  `trustManifest.sourceDigest`, and strict verification can require all URL-delivered
+  entries to carry pinned source digests.
 
 ## Intended Repository Shape
 

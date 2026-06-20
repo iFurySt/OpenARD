@@ -22,6 +22,7 @@ func newVerifyCommand() *cobra.Command {
 func newVerifyCatalogCommand() *cobra.Command {
 	var jsonOutput bool
 	var verifySourceDigests bool
+	var requireSourceDigests bool
 	command := &cobra.Command{
 		Use:   "catalog SOURCE",
 		Short: "Verify an ai-catalog.json file or URL",
@@ -33,8 +34,10 @@ func newVerifyCatalogCommand() *cobra.Command {
 				return err
 			}
 			sourceDigestResults := []verify.SourceDigestResult{}
-			if verifySourceDigests {
-				results, err := verify.VerifySourceDigests(ctx, loadedCatalog)
+			if verifySourceDigests || requireSourceDigests {
+				results, err := verify.VerifySourceDigestsWithOptions(ctx, loadedCatalog, verify.SourceDigestOptions{
+					RequirePinnedURLArtifacts: requireSourceDigests,
+				})
 				if err != nil {
 					return err
 				}
@@ -50,6 +53,10 @@ func newVerifyCatalogCommand() *cobra.Command {
 				if verifySourceDigests {
 					payload["sourceDigests"] = sourceDigestResults
 				}
+				if requireSourceDigests {
+					payload["sourceDigestsRequired"] = true
+					payload["sourceDigests"] = sourceDigestResults
+				}
 				encoded, err := json.MarshalIndent(payload, "", "  ")
 				if err != nil {
 					return err
@@ -62,13 +69,17 @@ func newVerifyCatalogCommand() *cobra.Command {
 				"valid ai-catalog.json: %d entries\n",
 				len(loadedCatalog.Entries),
 			)
-			if verifySourceDigests {
+			if verifySourceDigests || requireSourceDigests {
 				fmt.Fprintf(cmd.OutOrStdout(), "verified source digests: %d\n", len(sourceDigestResults))
+			}
+			if requireSourceDigests {
+				fmt.Fprintf(cmd.OutOrStdout(), "required source digests: true\n")
 			}
 			return nil
 		},
 	}
 	command.Flags().BoolVar(&jsonOutput, "json", false, "Print machine-readable verification result")
 	command.Flags().BoolVar(&verifySourceDigests, "source-digests", false, "Fetch URL artifacts and verify trustManifest.sourceDigest")
+	command.Flags().BoolVar(&requireSourceDigests, "require-source-digests", false, "Require every URL artifact to have trustManifest.sourceDigest and verify it")
 	return command
 }
