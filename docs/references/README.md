@@ -9,3 +9,10 @@ Good candidates:
 - Short summaries of external standards or partner integrations.
 
 Avoid dumping large vendor manuals here. Keep references curated and scoped.
+
+## Current References
+
+- [ARD market context](ard-market-context.md): launch article summary, project
+  positioning, and initial strategic conclusions for `ard`.
+- [ARD spec working notes](ard-spec-working-notes.md): upstream specification reference,
+  key implementation constraints, and source-management recommendation.

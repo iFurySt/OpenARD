@@ -1,6 +1,7 @@
 # ard
 
-This repository is a base template for agent-first software projects.
+This repository is for `ard`, a neutral, self-hosted Agentic Resource Discovery
+registry distribution and toolkit for enterprises and agent platforms.
 
 `AGENTS.md` stays short on purpose. Treat it as a map, not the encyclopedia. Repository-local markdown under `docs/` is the system of record.
 
