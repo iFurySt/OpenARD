@@ -4,7 +4,8 @@ Define the operational bar for the repository here.
 
 ## Health
 
-- `GET /health` returns registry process health and the active entry count.
+- `GET /health` returns registry process health, active entry count, and build metadata
+  fields: `version`, `commit`, and `buildDate`.
 - Health checks must not require admin authentication.
 
 ## Request Correlation

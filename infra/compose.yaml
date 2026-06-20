@@ -19,6 +19,10 @@ services:
     build:
       context: ..
       dockerfile: Dockerfile
+      args:
+        VERSION: ${VERSION:-dev}
+        COMMIT: ${COMMIT:-unknown}
+        BUILD_DATE: ${BUILD_DATE:-unknown}
     image: ${ARD_IMAGE:-ard:local}
     environment:
       DATABASE_URL: postgres://ard:ard@postgres:5432/ard?sslmode=disable

@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 
+	"github.com/ifuryst/ard/internal/buildinfo"
 	"github.com/ifuryst/ard/internal/config"
 	"github.com/ifuryst/ard/internal/httpapi"
 	"github.com/ifuryst/ard/internal/policy"
@@ -54,7 +55,7 @@ func runServer(cmd *cobra.Command, root *rootOptions, addr string) error {
 		AdminTokensFile: adminTokensFile,
 		Policy:          loadedPolicy,
 	})
-	fmt.Fprintf(cmd.ErrOrStderr(), "listening on %s\n", addr)
+	fmt.Fprintf(cmd.ErrOrStderr(), "listening on %s (%s)\n", addr, buildinfo.Current().String())
 	return router.Run(addr)
 }
 

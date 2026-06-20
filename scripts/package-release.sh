@@ -16,8 +16,8 @@ fi
 
 SAFE_VERSION="$(printf '%s' "$VERSION" | tr '/[:space:]' '-')"
 TMP_DIR="$(mktemp -d)"
-GO_BUILD_FLAGS=(-trimpath -buildvcs=false -ldflags="-s -w")
 CREATED="${SOURCE_DATE_EPOCH:-}"
+COMMIT="${COMMIT:-}"
 
 if [ -n "$CREATED" ]; then
 	if date -u -d "@$CREATED" '+%Y-%m-%dT%H:%M:%SZ' >/dev/null 2>&1; then
@@ -30,6 +30,17 @@ elif git -C "$ROOT_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
 else
 	CREATED="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
 fi
+
+if [ -z "$COMMIT" ]; then
+	if git -C "$ROOT_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+		COMMIT="$(git -C "$ROOT_DIR" rev-parse --short=12 HEAD)"
+	else
+		COMMIT="unknown"
+	fi
+fi
+
+LDFLAGS="-s -w -X github.com/ifuryst/ard/internal/buildinfo.Version=$VERSION -X github.com/ifuryst/ard/internal/buildinfo.Commit=$COMMIT -X github.com/ifuryst/ard/internal/buildinfo.Date=$CREATED"
+GO_BUILD_FLAGS=(-trimpath -buildvcs=false -ldflags="$LDFLAGS")
 
 cleanup() {
 	rm -rf "$TMP_DIR"

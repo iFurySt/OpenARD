@@ -9,7 +9,7 @@ Cobra, Gin, GORM, and Postgres.
   catalog endpoints through Gin, plus optional token-protected admin routes.
 - CLI: Cobra operational entry point for `serve`, `add catalog`, `add mcp`, `add a2a`,
   `add skill`, `add openapi`, `admin`, `browse`, `crawl`, `export catalog`, `list`,
-  `remove`, `verify catalog`, and `search` today.
+  `remove`, `verify catalog`, `version`, and `search` today.
 - Entrypoints: `cmd/ard` ships the combined toolkit, `cmd/ardctl` ships client and
   management operations without server startup, and `cmd/ard-server` ships a dedicated
   registry server binary.
@@ -22,7 +22,8 @@ Cobra, Gin, GORM, and Postgres.
   registry with Postgres for local self-hosted trials.
 - Binary distribution: `make package` produces versioned Linux/macOS amd64/arm64
   archives for `ard`, `ardctl`, and `ard-server`, plus an SPDX SBOM and SHA-256 checksum
-  manifest.
+  manifest. Build metadata is embedded into all packaged binaries and exposed through
+  CLI version commands, server startup logs, and `/health`.
 - Release publishing: pushing a `v*` tag runs the GitHub Actions release workflow, checks
   package checksums, generates signed GitHub artifact attestations for release
   provenance and SBOM, and publishes the `dist/` artifacts to a GitHub release.
@@ -116,6 +117,8 @@ Cobra, Gin, GORM, and Postgres.
 - `internal/ard/`: ARD models, media type constants, filters, and validation.
 - `internal/adapters/`: artifact-to-catalog-entry adapters for MCP, A2A, Skills, and
   OpenAPI.
+- `internal/buildinfo/`: linked build version, commit, and build date metadata shared by
+  binaries, HTTP health, and package checks.
 - `internal/catalog/`: local and HTTP catalog loading.
 - `internal/store/`: GORM/Postgres persistence and search.
 - `internal/config/`: environment and CLI config helpers.
@@ -228,7 +231,8 @@ boundary without changing HTTP contracts.
   `AND`, `OR`, parenthesized groups, and `=`, `!=`, `contains`, `>`, and `>=` operators
   where meaningful. `orderBy` is whitelisted for display name, type, publisher, creation
   time, and update time.
-- `GET /health`: deployment health. Implemented.
+- `GET /health`: deployment health with active entry count plus build version, commit,
+  and build date metadata. Implemented.
 - `GET /metrics`: Prometheus-style operational metrics. Implemented.
 - `/admin/*`: implementation-specific management routes; disabled unless an admin token
   is configured. Implemented, including entry lifecycle status management and paginated
@@ -241,13 +245,14 @@ boundary without changing HTTP contracts.
   module.
 - CLI equivalents: `serve`, `add catalog`, `add mcp`, `add a2a`, `add skill`,
   `add openapi`, `crawl`, `admin`, `browse`, `export catalog`, `list`, `remove`,
-  `verify catalog`, and `search` are implemented. `ardctl browse` calls public
+  `verify catalog`, `version`, and `search` are implemented. `ardctl browse` calls public
   `/agents` with filter/order/pagination options. `ardctl list --filter` and
   `--order-by` reuse the same deterministic browse parser as public `/agents`.
   `ardctl admin status` manages remote entry lifecycle state, `ardctl admin review
   --reason` handles pending review decisions with optional audit reasons, and `ardctl
   admin audit` lists and verifies admin mutation events.
-  `ard-server` runs the same server without exposing management subcommands.
+  `ard-server` runs the same server without exposing management subcommands, while still
+  exposing `--version` and `version` for operational inventory.
 
 ## Specification Alignment
 

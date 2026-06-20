@@ -89,8 +89,11 @@ type BrowseOptions struct {
 }
 
 type HealthResponse struct {
-	Status  string `json:"status"`
-	Entries int    `json:"entries"`
+	Status    string `json:"status"`
+	Entries   int    `json:"entries"`
+	Version   string `json:"version,omitempty"`
+	Commit    string `json:"commit,omitempty"`
+	BuildDate string `json:"buildDate,omitempty"`
 }
 
 func (client *Client) Search(ctx context.Context, request ard.SearchRequest) (ard.SearchResponse, error) {

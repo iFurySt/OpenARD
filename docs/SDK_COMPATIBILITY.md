@@ -42,6 +42,10 @@ Explicitly unstable surface:
 - Opaque `pageToken` values. Clients must store and replay them, not parse them.
 - Implementation-specific metadata keys unless documented in repository docs.
 
+Additive response fields are allowed before `v1.0.0`. For example, `pkg/client`
+`HealthResponse` includes optional `version`, `commit`, and `buildDate` fields so
+operators can identify the registry binary answering a request.
+
 ## Validation
 
 `make test-public-go-client` creates a temporary external module, imports the public SDK,

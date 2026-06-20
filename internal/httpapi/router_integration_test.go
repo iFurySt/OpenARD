@@ -356,6 +356,42 @@ func TestRouterSearchWithPostgres(t *testing.T) {
 	}
 }
 
+func TestRouterHealthIncludesBuildInfo(t *testing.T) {
+	databaseURL := os.Getenv("ARD_TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("set ARD_TEST_DATABASE_URL to run Postgres integration tests")
+	}
+	registryStore, err := store.Open(databaseURL)
+	if err != nil {
+		t.Fatalf("open store: %v", err)
+	}
+	defer registryStore.Close()
+	if err := registryStore.AutoMigrate(); err != nil {
+		t.Fatalf("migrate store: %v", err)
+	}
+
+	router := NewRouter(registryStore)
+	response := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/health", nil)
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("unexpected health status: %d body=%s", response.Code, response.Body.String())
+	}
+	var body map[string]any
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode health response: %v", err)
+	}
+	if body["status"] != "ok" {
+		t.Fatalf("unexpected health status body: %#v", body)
+	}
+	for _, key := range []string{"version", "commit", "buildDate"} {
+		if body[key] == "" {
+			t.Fatalf("expected health %s field, got %#v", key, body)
+		}
+	}
+}
+
 func TestRouterWellKnownCatalogPublishesActiveEntries(t *testing.T) {
 	databaseURL := os.Getenv("ARD_TEST_DATABASE_URL")
 	if databaseURL == "" {

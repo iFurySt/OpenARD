@@ -2,13 +2,17 @@ FROM golang:1.25-alpine AS build
 
 WORKDIR /src
 
+ARG VERSION=dev
+ARG COMMIT=unknown
+ARG BUILD_DATE=unknown
+
 COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
-RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/ard ./cmd/ard
-RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/ardctl ./cmd/ardctl
-RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/ard-server ./cmd/ard-server
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w -X github.com/ifuryst/ard/internal/buildinfo.Version=${VERSION} -X github.com/ifuryst/ard/internal/buildinfo.Commit=${COMMIT} -X github.com/ifuryst/ard/internal/buildinfo.Date=${BUILD_DATE}" -o /out/ard ./cmd/ard
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w -X github.com/ifuryst/ard/internal/buildinfo.Version=${VERSION} -X github.com/ifuryst/ard/internal/buildinfo.Commit=${COMMIT} -X github.com/ifuryst/ard/internal/buildinfo.Date=${BUILD_DATE}" -o /out/ardctl ./cmd/ardctl
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w -X github.com/ifuryst/ard/internal/buildinfo.Version=${VERSION} -X github.com/ifuryst/ard/internal/buildinfo.Commit=${COMMIT} -X github.com/ifuryst/ard/internal/buildinfo.Date=${BUILD_DATE}" -o /out/ard-server ./cmd/ard-server
 
 FROM alpine:3.22
 

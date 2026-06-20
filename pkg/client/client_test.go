@@ -51,7 +51,7 @@ func TestClientPublicRegistryFlow(t *testing.T) {
 		case "/.well-known/ai-catalog.json":
 			_, _ = response.Write([]byte(`{"specVersion":"1.0","host":{"displayName":"Example"},"entries":[{"identifier":"urn:air:example.com:server:weather","displayName":"Weather","type":"application/mcp-server-card+json","url":"https://example.com/mcp.json"}]}`))
 		case "/health":
-			_, _ = response.Write([]byte(`{"status":"ok","entries":1}`))
+			_, _ = response.Write([]byte(`{"status":"ok","entries":1,"version":"v0.1.0","commit":"abc123","buildDate":"2026-06-21T00:00:00Z"}`))
 		default:
 			http.NotFound(response, request)
 		}
@@ -110,7 +110,7 @@ func TestClientPublicRegistryFlow(t *testing.T) {
 	if err != nil {
 		t.Fatalf("health: %v", err)
 	}
-	if health.Status != "ok" || health.Entries != 1 {
+	if health.Status != "ok" || health.Entries != 1 || health.Version != "v0.1.0" || health.Commit != "abc123" {
 		t.Fatalf("unexpected health response: %#v", health)
 	}
 }

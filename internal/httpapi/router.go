@@ -10,6 +10,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/ifuryst/ard/internal/ard"
+	"github.com/ifuryst/ard/internal/buildinfo"
 	"github.com/ifuryst/ard/internal/federation"
 	"github.com/ifuryst/ard/internal/pagination"
 	"github.com/ifuryst/ard/internal/policy"
@@ -86,8 +87,11 @@ func (server Server) health(context *gin.Context) {
 		return
 	}
 	context.JSON(http.StatusOK, gin.H{
-		"status":  "ok",
-		"entries": count,
+		"status":    "ok",
+		"entries":   count,
+		"version":   buildinfo.Version,
+		"commit":    buildinfo.Commit,
+		"buildDate": buildinfo.Date,
 	})
 }
 

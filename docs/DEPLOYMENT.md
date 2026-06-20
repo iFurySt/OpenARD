@@ -14,6 +14,14 @@ make build
 - `bin/ardctl`: client and management CLI.
 - `bin/ard-server`: dedicated registry server.
 
+Inspect embedded build metadata:
+
+```sh
+bin/ard version
+bin/ardctl version --json
+bin/ard-server --version
+```
+
 Build versioned release archives:
 
 ```sh
@@ -26,6 +34,9 @@ macOS on amd64 and arm64 by default. Each archive contains `ard`, `ardctl`,
 `dist/sbom.spdx.json` with the Go module dependency SBOM and `dist/checksums.txt` with
 SHA-256 hashes for every archive and the SBOM.
 
+Release archives embed `version`, `commit`, and `buildDate` into every binary. The
+server also prints that metadata on startup and returns it from `GET /health`.
+
 Generate only the SBOM:
 
 ```sh
@@ -36,6 +47,7 @@ Useful overrides:
 
 ```sh
 VERSION=v0.1.0 PLATFORMS='linux/amd64 darwin/arm64' make package
+VERSION=v0.1.0 COMMIT="$(git rev-parse --short=12 HEAD)" make build
 ```
 
 ## Release Publishing
@@ -47,9 +59,10 @@ git tag v0.1.0
 git push origin v0.1.0
 ```
 
-The release workflow packages the binaries with `VERSION` set to the tag name, verifies
-`dist/checksums.txt`, generates GitHub artifact attestations for release provenance and
-the SPDX SBOM, and uploads the `dist/` artifacts to the GitHub release.
+The release workflow packages the binaries with `VERSION` set to the tag name and
+`COMMIT` set to the triggering commit, verifies `dist/checksums.txt`, generates GitHub
+artifact attestations for release provenance and the SPDX SBOM, and uploads the `dist/`
+artifacts to the GitHub release.
 
 Consumers can verify a downloaded archive with:
 
@@ -79,6 +92,10 @@ make docker-build
 The image defaults to `ard-server --addr :8080` and also includes `ard` and `ardctl`
 for operational use.
 
+`make docker-build` passes the same `VERSION`, `COMMIT`, and `BUILD_DATE` overrides as
+`make build`. Docker Compose also forwards those variables into the image build when
+they are set.
+
 Expected environment:
 
 - `DATABASE_URL`: Postgres connection URL.
@@ -102,6 +119,8 @@ Useful overrides:
 ```sh
 ARD_REGISTRY_PORT=8080 \
 ARD_ADMIN_TOKEN='change-me' \
+VERSION=v0.1.0 \
+COMMIT="$(git rev-parse --short=12 HEAD)" \
 docker compose -f infra/compose.yaml up --build
 ```
 

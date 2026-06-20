@@ -24,6 +24,8 @@ ard serve
 ard-server --addr :8080 --admin-token "$ARD_ADMIN_TOKEN"
 ard-server --admin-tokens-file ./admin-tokens.json
 ard-server --policy-file ./policy.json --admin-token "$ARD_ADMIN_TOKEN"
+ard version
+ardctl version --json
 ard add catalog https://example.com/.well-known/ai-catalog.json
 ardctl add catalog https://example.com/.well-known/ai-catalog.json
 ard add mcp https://example.com/mcp/server.json
@@ -67,6 +69,8 @@ make test-compose
 make test-public-go-client
 make fmt-check
 
+bin/ard version
+bin/ardctl version --json
 bin/ard --database-url "$DATABASE_URL" add catalog ./internal/catalog/testdata/acme-ai-catalog.json
 bin/ard --database-url "$DATABASE_URL" add mcp ./internal/adapters/testdata/mcp-server-card.json
 bin/ard --database-url "$DATABASE_URL" add a2a ./internal/adapters/testdata/a2a-agent-card.json
@@ -85,6 +89,7 @@ bin/ard-server --database-url "$DATABASE_URL" --admin-token "$ARD_ADMIN_TOKEN"
 
 # terminal 2
 bin/ardctl browse --registry-url http://127.0.0.1:8080 --filter "type = 'application/mcp-server-card+json'" --json
+curl -s http://127.0.0.1:8080/health
 bin/ardctl search "weather forecast" --kind mcp --json
 bin/ardctl admin list --admin-token "$ARD_ADMIN_TOKEN"
 ```
@@ -133,10 +138,12 @@ histograms and Go runtime gauges. `ardctl admin --request-id` can carry one corr
 ID across remote artifact fetches and admin API calls.
 It builds three entry points: `ard` for the combined toolkit, `ardctl` for CLI/client
 operations, and `ard-server` for the registry server. `make package` creates Linux/macOS
-release archives with an SPDX SBOM and SHA-256 checksums. CI runs formatting checks,
-workflow checks, tests, public Go client import checks, builds, release packaging, and
-Postgres integration tests. Pushing a `v*` tag runs the release workflow, publishes the
-release archives, and generates GitHub artifact attestations for provenance plus SBOM.
+release archives with embedded version metadata, an SPDX SBOM, and SHA-256 checksums.
+`ard version`, `ardctl version`, `ard-server --version`, startup logs, and `/health`
+expose the build version, commit, and build date. CI runs formatting checks, workflow
+checks, tests, public Go client import checks, builds, release packaging, and Postgres
+integration tests. Pushing a `v*` tag runs the release workflow, publishes the release
+archives, and generates GitHub artifact attestations for provenance plus SBOM.
 `make test-e2e` runs the real artifact onboarding flow with live MCP, Skill, OpenAPI,
 policy-gate examples, a local upstream registry for auto federation, and an external
 Go admin SDK check against the live registry.

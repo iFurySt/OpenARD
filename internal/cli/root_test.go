@@ -1,6 +1,10 @@
 package cli
 
-import "testing"
+import (
+	"bytes"
+	"strings"
+	"testing"
+)
 
 func TestRootCommandIncludesServe(t *testing.T) {
 	command := NewRootCommand()
@@ -12,6 +16,9 @@ func TestRootCommandIncludesServe(t *testing.T) {
 	}
 	if _, _, err := command.Find([]string{"serve"}); err != nil {
 		t.Fatalf("expected ard serve command: %v", err)
+	}
+	if _, _, err := command.Find([]string{"version"}); err != nil {
+		t.Fatalf("expected ard version command: %v", err)
 	}
 }
 
@@ -34,6 +41,9 @@ func TestCLICommandOmitsServe(t *testing.T) {
 	}
 	if _, _, err := command.Find([]string{"search"}); err != nil {
 		t.Fatalf("expected ardctl search command: %v", err)
+	}
+	if _, _, err := command.Find([]string{"version"}); err != nil {
+		t.Fatalf("expected ardctl version command: %v", err)
 	}
 	if _, _, err := command.Find([]string{"export"}); err != nil {
 		t.Fatalf("expected ardctl export command: %v", err)
@@ -66,7 +76,36 @@ func TestServerCommandRunsAtRoot(t *testing.T) {
 	if command.Flag("admin-tokens-file") == nil {
 		t.Fatal("ard-server should expose admin tokens file flag")
 	}
-	if len(command.Commands()) != 0 {
-		t.Fatalf("ard-server should not expose management subcommands, got %d", len(command.Commands()))
+	if _, _, err := command.Find([]string{"version"}); err != nil {
+		t.Fatalf("expected ard-server version command: %v", err)
+	}
+	if found, _, err := command.Find([]string{"admin"}); err == nil && found.Name() == "admin" {
+		t.Fatal("ard-server should not expose management subcommands")
+	}
+}
+
+func TestVersionCommandTextAndJSON(t *testing.T) {
+	command := NewRootCommand()
+	var output bytes.Buffer
+	command.SetOut(&output)
+	command.SetErr(&output)
+	command.SetArgs([]string{"version"})
+	if err := command.Execute(); err != nil {
+		t.Fatalf("version command: %v", err)
+	}
+	if got := output.String(); !strings.Contains(got, "version=") || !strings.Contains(got, "commit=") {
+		t.Fatalf("unexpected version output: %s", got)
+	}
+
+	output.Reset()
+	command = NewRootCommand()
+	command.SetOut(&output)
+	command.SetErr(&output)
+	command.SetArgs([]string{"version", "--json"})
+	if err := command.Execute(); err != nil {
+		t.Fatalf("version --json command: %v", err)
+	}
+	if got := output.String(); !strings.Contains(got, `"version"`) || !strings.Contains(got, `"commit"`) {
+		t.Fatalf("unexpected JSON version output: %s", got)
 	}
 }

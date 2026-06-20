@@ -1,6 +1,9 @@
 package cli
 
 import (
+	"fmt"
+
+	"github.com/ifuryst/ard/internal/buildinfo"
 	"github.com/spf13/cobra"
 )
 
@@ -23,26 +26,31 @@ func NewServerCommand() *cobra.Command {
 	options := rootOptions{}
 	var addr string
 	command := &cobra.Command{
-		Use:   "ard-server",
-		Short: "Run the ARD registry server",
+		Use:     "ard-server",
+		Short:   "Run the ARD registry server",
+		Version: buildinfo.Version,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runServer(cmd, &options, addr)
 		},
 	}
+	command.SetVersionTemplate(versionTemplate(command.Use))
 	addDatabaseFlag(command, &options)
 	addAdminTokenFlag(command, &options)
 	addAdminTokensFileFlag(command, &options)
 	addPolicyFlag(command, &options)
 	command.Flags().StringVar(&addr, "addr", ":8080", "HTTP listen address")
+	command.AddCommand(newVersionCommand())
 	return command
 }
 
 func newRootCommand(use string, includeServer bool) *cobra.Command {
 	options := rootOptions{}
 	command := &cobra.Command{
-		Use:   use,
-		Short: "Self-hosted Agentic Resource Discovery registry and toolkit",
+		Use:     use,
+		Short:   "Self-hosted Agentic Resource Discovery registry and toolkit",
+		Version: buildinfo.Version,
 	}
+	command.SetVersionTemplate(versionTemplate(use))
 	addDatabaseFlag(command, &options)
 	addPolicyFlag(command, &options)
 
@@ -58,7 +66,12 @@ func newRootCommand(use string, includeServer bool) *cobra.Command {
 	command.AddCommand(newRemoveCommand(&options))
 	command.AddCommand(newSearchCommand())
 	command.AddCommand(newVerifyCommand())
+	command.AddCommand(newVersionCommand())
 	return command
+}
+
+func versionTemplate(name string) string {
+	return fmt.Sprintf("%s %s\n", name, buildinfo.Current().String())
 }
 
 func addDatabaseFlag(command *cobra.Command, options *rootOptions) {
