@@ -48,10 +48,13 @@ Use this document to make secure defaults explicit and legible to agents.
 
 - Admin upsert, lifecycle status, and delete operations append persisted audit events.
 - Audit events record action, identifier, status when relevant, source, remote address,
-  request ID, and timestamp.
+  request ID, timestamp, previous hash, and event hash.
 - Audit events do not record admin bearer tokens or request bodies.
-- The current audit log is an MVP event trail, not a complete tamper-evident audit
-  system.
+- Use `ardctl admin audit --verify-chain` or `GET /admin/audit/verify` to verify that
+  persisted audit events still match their hash chain.
+- The hash chain is tamper-evident metadata inside the same database. It is not a
+  replacement for external immutable storage, detached signatures, or database access
+  control.
 
 ## Request Logging
 
@@ -81,7 +84,7 @@ Use this document to make secure defaults explicit and legible to agents.
 
 - Runtime rotation is limited to role-scoped token files; the single legacy admin token
   is still static until restart.
-- No tamper-evident audit log yet.
+- No externally anchored or signed audit log yet.
 - No signed policy bundle or external policy engine yet.
 - No detached signature, DID, SPIFFE, certificate, or key-resolution verification yet.
 

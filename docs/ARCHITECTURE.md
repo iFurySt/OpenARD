@@ -47,8 +47,9 @@ Cobra, Gin, GORM, and Postgres.
 - Review workflow: pending entries can be listed through `/admin/reviews` and approved or
   rejected through dedicated review routes and `ardctl admin review`.
 - Audit log: admin mutations append persisted events for upsert, status changes, and
-  deletion with action, identifier, status, source, remote address, request ID, and
-  timestamp.
+  deletion with action, identifier, status, source, remote address, request ID,
+  timestamp, previous hash, and event hash. `/admin/audit/verify` checks the persisted
+  hash chain.
 - Request correlation: Gin middleware preserves or generates `X-Request-ID`, returns it
   on every HTTP response, emits JSON access logs, and attaches request IDs to admin audit
   events.
@@ -146,6 +147,8 @@ boundary without changing HTTP contracts.
   `Authorization: Bearer` token when enabled.
 - Role-scoped token file reloads must preserve the last valid token set if a changed file
   is invalid, so a partial write does not lock operators out.
+- Audit hash chains are tamper-evident integrity metadata, not a replacement for external
+  immutable storage, signatures, or database access control.
 - Inactive lifecycle states are implementation metadata, not ARD catalog schema fields.
   Do not export disabled or pending entries through public catalog/search surfaces.
 - Policy evaluation must happen before persistence for local add/crawl and remote admin
@@ -166,13 +169,13 @@ boundary without changing HTTP contracts.
 - `GET /metrics`: Prometheus-style operational metrics. Implemented.
 - `/admin/*`: implementation-specific management routes; disabled unless an admin token
   is configured. Implemented, including entry lifecycle status management and paginated
-  audit event listing.
+  audit event listing plus audit hash-chain verification.
 - CLI equivalents: `serve`, `add catalog`, `add mcp`, `add a2a`, `add skill`,
   `add openapi`, `crawl`, `admin`, `export catalog`, `list`, `remove`, `verify catalog`,
   and `search` are implemented. `ardctl admin status` manages remote entry lifecycle
   state, `ardctl admin review` handles pending review decisions, and `ardctl admin audit`
-  lists admin mutation events. `ard-server` runs the same server without exposing
-  management subcommands.
+  lists and verifies admin mutation events. `ard-server` runs the same server without
+  exposing management subcommands.
 
 ## Specification Alignment
 

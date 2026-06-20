@@ -2,6 +2,8 @@ package store
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -50,25 +52,29 @@ type CatalogEntryRecord struct {
 }
 
 type AuditEventRecord struct {
-	ID         string `gorm:"primaryKey;size:36"`
-	Action     string `gorm:"not null;index"`
-	Identifier string `gorm:"index"`
-	Status     string
-	RequestID  string `gorm:"index"`
-	Source     string `gorm:"not null;index"`
-	RemoteAddr string
-	CreatedAt  time.Time `gorm:"index"`
+	ID           string `gorm:"primaryKey;size:36"`
+	Action       string `gorm:"not null;index"`
+	Identifier   string `gorm:"index"`
+	Status       string
+	RequestID    string `gorm:"index"`
+	Source       string `gorm:"not null;index"`
+	RemoteAddr   string
+	PreviousHash string    `gorm:"size:64;index"`
+	Hash         string    `gorm:"size:64;index"`
+	CreatedAt    time.Time `gorm:"index"`
 }
 
 type AuditEvent struct {
-	ID         string    `json:"id"`
-	Action     string    `json:"action"`
-	Identifier string    `json:"identifier,omitempty"`
-	Status     string    `json:"status,omitempty"`
-	RequestID  string    `json:"requestId,omitempty"`
-	Source     string    `json:"source"`
-	RemoteAddr string    `json:"remoteAddr,omitempty"`
-	CreatedAt  time.Time `json:"createdAt"`
+	ID           string    `json:"id"`
+	Action       string    `json:"action"`
+	Identifier   string    `json:"identifier,omitempty"`
+	Status       string    `json:"status,omitempty"`
+	RequestID    string    `json:"requestId,omitempty"`
+	Source       string    `json:"source"`
+	RemoteAddr   string    `json:"remoteAddr,omitempty"`
+	PreviousHash string    `json:"previousHash,omitempty"`
+	Hash         string    `json:"hash,omitempty"`
+	CreatedAt    time.Time `json:"createdAt"`
 }
 
 type SearchOptions struct {
@@ -105,6 +111,14 @@ type AuditEventsPage struct {
 	NextPageToken string
 }
 
+type AuditChainVerification struct {
+	Valid               bool   `json:"valid"`
+	Total               int64  `json:"total"`
+	LastHash            string `json:"lastHash,omitempty"`
+	FirstInvalidEventID string `json:"firstInvalidEventId,omitempty"`
+	Message             string `json:"message,omitempty"`
+}
+
 func Open(databaseURL string) (*Store, error) {
 	db, err := gorm.Open(postgres.Open(databaseURL), &gorm.Config{})
 	if err != nil {
@@ -114,7 +128,10 @@ func Open(databaseURL string) (*Store, error) {
 }
 
 func (store *Store) AutoMigrate() error {
-	return store.db.AutoMigrate(&CatalogEntryRecord{}, &AuditEventRecord{})
+	if err := store.db.AutoMigrate(&CatalogEntryRecord{}, &AuditEventRecord{}); err != nil {
+		return err
+	}
+	return store.BackfillAuditChain(context.Background())
 }
 
 func (store *Store) Close() error {
@@ -123,6 +140,10 @@ func (store *Store) Close() error {
 		return err
 	}
 	return db.Close()
+}
+
+func (store *Store) ClearAuditEventsForTesting(ctx context.Context) error {
+	return store.db.WithContext(ctx).Exec("DELETE FROM audit_event_records").Error
 }
 
 func (store *Store) UpsertCatalog(ctx context.Context, catalog ard.Catalog, source string) error {
@@ -347,14 +368,16 @@ func (store *Store) DeleteEntry(ctx context.Context, identifier string) (bool, e
 
 func (store *Store) RecordAuditEvent(ctx context.Context, event AuditEvent) error {
 	record := AuditEventRecord{
-		ID:         event.ID,
-		Action:     event.Action,
-		Identifier: event.Identifier,
-		Status:     event.Status,
-		RequestID:  event.RequestID,
-		Source:     event.Source,
-		RemoteAddr: event.RemoteAddr,
-		CreatedAt:  event.CreatedAt,
+		ID:           event.ID,
+		Action:       event.Action,
+		Identifier:   event.Identifier,
+		Status:       event.Status,
+		RequestID:    event.RequestID,
+		Source:       event.Source,
+		RemoteAddr:   event.RemoteAddr,
+		PreviousHash: event.PreviousHash,
+		Hash:         event.Hash,
+		CreatedAt:    event.CreatedAt,
 	}
 	if record.ID == "" {
 		record.ID = uuid.NewString()
@@ -362,7 +385,59 @@ func (store *Store) RecordAuditEvent(ctx context.Context, event AuditEvent) erro
 	if record.CreatedAt.IsZero() {
 		record.CreatedAt = time.Now().UTC()
 	}
-	return store.db.WithContext(ctx).Create(&record).Error
+	record.CreatedAt = normalizeAuditTime(record.CreatedAt)
+	return store.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Exec("SELECT pg_advisory_xact_lock(?)", int64(427912733)).Error; err != nil {
+			return err
+		}
+		var previous AuditEventRecord
+		err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Order("created_at DESC, id DESC").
+			First(&previous).Error
+		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
+		}
+		if err == nil {
+			record.PreviousHash = previous.Hash
+		}
+		record.Hash = auditEventRecordHash(record)
+		return tx.Create(&record).Error
+	})
+}
+
+func (store *Store) BackfillAuditChain(ctx context.Context) error {
+	return store.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Exec("SELECT pg_advisory_xact_lock(?)", int64(427912733)).Error; err != nil {
+			return err
+		}
+		var records []AuditEventRecord
+		if err := tx.Order("created_at ASC, id ASC").Find(&records).Error; err != nil {
+			return err
+		}
+		previousHash := ""
+		for _, record := range records {
+			expectedHash := auditEventRecordHash(recordWithPreviousHash(record, previousHash))
+			if record.Hash != "" {
+				if record.PreviousHash != previousHash || record.Hash != expectedHash {
+					return nil
+				}
+				previousHash = record.Hash
+				continue
+			}
+			record.PreviousHash = previousHash
+			record.Hash = expectedHash
+			if err := tx.Model(&AuditEventRecord{}).
+				Where("id = ?", record.ID).
+				Updates(map[string]any{
+					"previous_hash": record.PreviousHash,
+					"hash":          record.Hash,
+				}).Error; err != nil {
+				return err
+			}
+			previousHash = record.Hash
+		}
+		return nil
+	})
 }
 
 func (store *Store) ListAuditEvents(ctx context.Context, limit int) ([]AuditEvent, int64, error) {
@@ -400,18 +475,97 @@ func (store *Store) ListAuditEventsPage(ctx context.Context, limit int, pageToke
 	}
 	events := make([]AuditEvent, 0, len(records))
 	for _, record := range records {
-		events = append(events, AuditEvent{
-			ID:         record.ID,
-			Action:     record.Action,
-			Identifier: record.Identifier,
-			Status:     record.Status,
-			RequestID:  record.RequestID,
-			Source:     record.Source,
-			RemoteAddr: record.RemoteAddr,
-			CreatedAt:  record.CreatedAt,
-		})
+		events = append(events, auditEventFromRecord(record))
 	}
 	return AuditEventsPage{Events: events, Total: total, NextPageToken: nextToken}, nil
+}
+
+func (store *Store) VerifyAuditChain(ctx context.Context) (AuditChainVerification, error) {
+	var records []AuditEventRecord
+	if err := store.db.WithContext(ctx).
+		Order("created_at ASC, id ASC").
+		Find(&records).Error; err != nil {
+		return AuditChainVerification{}, err
+	}
+	previousHash := ""
+	for _, record := range records {
+		expectedHash := auditEventRecordHash(recordWithPreviousHash(record, previousHash))
+		if record.PreviousHash != previousHash {
+			return AuditChainVerification{
+				Valid:               false,
+				Total:               int64(len(records)),
+				LastHash:            previousHash,
+				FirstInvalidEventID: record.ID,
+				Message:             "previousHash does not match preceding audit event",
+			}, nil
+		}
+		if record.Hash == "" || record.Hash != expectedHash {
+			return AuditChainVerification{
+				Valid:               false,
+				Total:               int64(len(records)),
+				LastHash:            previousHash,
+				FirstInvalidEventID: record.ID,
+				Message:             "hash does not match audit event contents",
+			}, nil
+		}
+		previousHash = record.Hash
+	}
+	return AuditChainVerification{
+		Valid:    true,
+		Total:    int64(len(records)),
+		LastHash: previousHash,
+	}, nil
+}
+
+func auditEventFromRecord(record AuditEventRecord) AuditEvent {
+	return AuditEvent{
+		ID:           record.ID,
+		Action:       record.Action,
+		Identifier:   record.Identifier,
+		Status:       record.Status,
+		RequestID:    record.RequestID,
+		Source:       record.Source,
+		RemoteAddr:   record.RemoteAddr,
+		PreviousHash: record.PreviousHash,
+		Hash:         record.Hash,
+		CreatedAt:    record.CreatedAt,
+	}
+}
+
+func recordWithPreviousHash(record AuditEventRecord, previousHash string) AuditEventRecord {
+	record.PreviousHash = previousHash
+	return record
+}
+
+func auditEventRecordHash(record AuditEventRecord) string {
+	payload := struct {
+		ID           string `json:"id"`
+		Action       string `json:"action"`
+		Identifier   string `json:"identifier"`
+		Status       string `json:"status"`
+		RequestID    string `json:"requestId"`
+		Source       string `json:"source"`
+		RemoteAddr   string `json:"remoteAddr"`
+		PreviousHash string `json:"previousHash"`
+		CreatedAt    string `json:"createdAt"`
+	}{
+		ID:           record.ID,
+		Action:       record.Action,
+		Identifier:   record.Identifier,
+		Status:       record.Status,
+		RequestID:    record.RequestID,
+		Source:       record.Source,
+		RemoteAddr:   record.RemoteAddr,
+		PreviousHash: record.PreviousHash,
+		CreatedAt:    normalizeAuditTime(record.CreatedAt).Format(time.RFC3339Nano),
+	}
+	data, _ := json.Marshal(payload)
+	sum := sha256.Sum256(data)
+	return hex.EncodeToString(sum[:])
+}
+
+func normalizeAuditTime(value time.Time) time.Time {
+	return value.UTC().Round(time.Microsecond)
 }
 
 func (store *Store) ExportCatalog(ctx context.Context, host *ard.HostInfo) (ard.Catalog, error) {

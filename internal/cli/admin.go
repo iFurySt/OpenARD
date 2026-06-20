@@ -46,10 +46,36 @@ func newAdminAuditCommand(options *adminOptions) *cobra.Command {
 	var limit int
 	var pageToken string
 	var jsonOutput bool
+	var verifyChain bool
 	command := &cobra.Command{
 		Use:   "audit",
 		Short: "List remote admin audit events",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if verifyChain {
+				body, err := adminRequest(cmd.Context(), *options, http.MethodGet, "/admin/audit/verify", nil)
+				if err != nil {
+					return err
+				}
+				if jsonOutput {
+					_, err := cmd.OutOrStdout().Write(append(body, '\n'))
+					return err
+				}
+				var response struct {
+					Valid               bool   `json:"valid"`
+					Total               int64  `json:"total"`
+					LastHash            string `json:"lastHash"`
+					FirstInvalidEventID string `json:"firstInvalidEventId"`
+					Message             string `json:"message"`
+				}
+				if err := json.Unmarshal(body, &response); err != nil {
+					return err
+				}
+				if !response.Valid {
+					return fmt.Errorf("remote audit chain invalid at %s: %s", response.FirstInvalidEventID, response.Message)
+				}
+				fmt.Fprintf(cmd.OutOrStdout(), "remote audit chain valid: %d events, last hash %s\n", response.Total, response.LastHash)
+				return nil
+			}
 			query := url.Values{}
 			if limit > 0 {
 				query.Set("pageSize", fmt.Sprint(limit))
@@ -88,6 +114,7 @@ func newAdminAuditCommand(options *adminOptions) *cobra.Command {
 	command.Flags().IntVar(&limit, "limit", 50, "Maximum audit events to list")
 	command.Flags().StringVar(&pageToken, "page-token", "", "Opaque page token returned by a previous admin audit response")
 	command.Flags().BoolVar(&jsonOutput, "json", false, "Print remote audit response JSON")
+	command.Flags().BoolVar(&verifyChain, "verify-chain", false, "Verify the remote audit event hash chain")
 	return command
 }
 
@@ -396,11 +423,13 @@ func entryStatus(entry ard.CatalogEntry) string {
 }
 
 type storeAuditEvent struct {
-	Action     string `json:"action"`
-	Identifier string `json:"identifier,omitempty"`
-	Status     string `json:"status,omitempty"`
-	RequestID  string `json:"requestId,omitempty"`
-	CreatedAt  string `json:"createdAt"`
+	Action       string `json:"action"`
+	Identifier   string `json:"identifier,omitempty"`
+	Status       string `json:"status,omitempty"`
+	RequestID    string `json:"requestId,omitempty"`
+	PreviousHash string `json:"previousHash,omitempty"`
+	Hash         string `json:"hash,omitempty"`
+	CreatedAt    string `json:"createdAt"`
 }
 
 func adminRequest(ctx context.Context, options adminOptions, method string, path string, payload []byte) ([]byte, error) {

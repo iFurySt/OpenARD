@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bytes"
 	"context"
 	"net/http"
 	"net/http/httptest"
@@ -15,6 +16,34 @@ func TestAdminRequestRequiresToken(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "admin token is required") {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestAdminAuditVerifyChainCommand(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != "/admin/audit/verify" {
+			t.Fatalf("unexpected path: %s", request.URL.Path)
+		}
+		if got := request.Header.Get("Authorization"); got != "Bearer test-token" {
+			t.Fatalf("unexpected authorization header: %s", got)
+		}
+		response.Header().Set("Content-Type", "application/json")
+		_, _ = response.Write([]byte(`{"valid":true,"total":2,"lastHash":"abc123"}`))
+	}))
+	defer server.Close()
+
+	var output bytes.Buffer
+	command := newAdminAuditCommand(&adminOptions{
+		registryURL: server.URL,
+		adminToken:  "test-token",
+	})
+	command.SetOut(&output)
+	command.SetArgs([]string{"--verify-chain"})
+	if err := command.Execute(); err != nil {
+		t.Fatalf("execute audit verify: %v", err)
+	}
+	if got := output.String(); !strings.Contains(got, "remote audit chain valid: 2 events, last hash abc123") {
+		t.Fatalf("unexpected output: %s", got)
 	}
 }
 

@@ -45,6 +45,7 @@ When `--source-digests` is enabled, `ard` fetches each URL entry that has
 - Implemented: `trustManifest.identity` presence validation.
 - Implemented: `trustManifest.sourceDigest` format validation.
 - Implemented: URL artifact source digest verification.
+- Implemented: admin audit event hash chaining and chain verification.
 - Not implemented yet: detached JWS signature verification.
 - Not implemented yet: DID, SPIFFE, certificate, or key resolution.
-- Not implemented yet: tamper-evident audit trails.
+- Not implemented yet: externally anchored or signed audit trails.

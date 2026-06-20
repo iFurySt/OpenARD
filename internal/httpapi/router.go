@@ -59,6 +59,7 @@ func NewRouterWithOptions(store *store.Store, options Options) *gin.Engine {
 	router.POST("/explore", server.explore)
 	if server.adminAuthorizer != nil {
 		admin := router.Group("/admin")
+		admin.GET("/audit/verify", server.requireAdminPermission(adminPermissionRead), server.adminVerifyAuditChain)
 		admin.GET("/audit", server.requireAdminPermission(adminPermissionRead), server.adminAuditEvents)
 		admin.GET("/reviews", server.requireAdminPermission(adminPermissionRead), server.adminReviewEntries)
 		admin.GET("/entries", server.requireAdminPermission(adminPermissionRead), server.adminEntries)
@@ -420,6 +421,18 @@ func (server Server) adminAuditEvents(context *gin.Context) {
 		"total":     page.Total,
 		"pageToken": page.NextPageToken,
 	})
+}
+
+func (server Server) adminVerifyAuditChain(context *gin.Context) {
+	result, err := server.store.VerifyAuditChain(context.Request.Context())
+	if err != nil {
+		context.JSON(http.StatusInternalServerError, gin.H{
+			"errorCode": "INTERNAL_ERROR",
+			"message":   err.Error(),
+		})
+		return
+	}
+	context.JSON(http.StatusOK, result)
 }
 
 func (server Server) evaluatePolicy(catalog ard.Catalog) (map[string]string, error) {

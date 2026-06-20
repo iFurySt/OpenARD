@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/ifuryst/ard/internal/ard"
 )
@@ -297,5 +298,89 @@ func TestPostgresImportAndSearch(t *testing.T) {
 	}
 	if removed {
 		t.Fatal("expected second delete to report missing entry")
+	}
+}
+
+func TestPostgresAuditHashChainVerification(t *testing.T) {
+	databaseURL := os.Getenv("ARD_TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("set ARD_TEST_DATABASE_URL to run Postgres integration tests")
+	}
+	ctx := context.Background()
+	registryStore, err := Open(databaseURL)
+	if err != nil {
+		t.Fatalf("open store: %v", err)
+	}
+	defer registryStore.Close()
+	if err := registryStore.AutoMigrate(); err != nil {
+		t.Fatalf("migrate store: %v", err)
+	}
+	if err := registryStore.db.Exec("DELETE FROM audit_event_records").Error; err != nil {
+		t.Fatalf("clean audit events: %v", err)
+	}
+	defer func() {
+		_ = registryStore.db.Exec("DELETE FROM audit_event_records").Error
+	}()
+
+	firstTime := time.Date(2026, 6, 21, 0, 40, 0, 0, time.UTC)
+	secondTime := firstTime.Add(time.Second)
+	if err := registryStore.RecordAuditEvent(ctx, AuditEvent{
+		ID:         "00000000-0000-0000-0000-000000000001",
+		Action:     "entry.upsert",
+		Identifier: "urn:air:audit.example.com:server:one",
+		RequestID:  "audit-chain-one",
+		Source:     "test",
+		CreatedAt:  firstTime,
+	}); err != nil {
+		t.Fatalf("record first audit event: %v", err)
+	}
+	if err := registryStore.RecordAuditEvent(ctx, AuditEvent{
+		ID:         "00000000-0000-0000-0000-000000000002",
+		Action:     "entry.status",
+		Identifier: "urn:air:audit.example.com:server:one",
+		Status:     LifecycleStatusDisabled,
+		RequestID:  "audit-chain-two",
+		Source:     "test",
+		CreatedAt:  secondTime,
+	}); err != nil {
+		t.Fatalf("record second audit event: %v", err)
+	}
+
+	verification, err := registryStore.VerifyAuditChain(ctx)
+	if err != nil {
+		t.Fatalf("verify audit chain: %v", err)
+	}
+	if !verification.Valid || verification.Total != 2 || verification.LastHash == "" {
+		t.Fatalf("expected valid audit chain, got %#v", verification)
+	}
+	events, _, err := registryStore.ListAuditEvents(ctx, 10)
+	if err != nil {
+		t.Fatalf("list audit events: %v", err)
+	}
+	if len(events) != 2 || events[0].Hash == "" || events[1].Hash == "" {
+		t.Fatalf("expected audit hashes in listed events, got %#v", events)
+	}
+
+	if err := registryStore.db.Model(&AuditEventRecord{}).
+		Where("id = ?", "00000000-0000-0000-0000-000000000001").
+		Update("status", LifecycleStatusPending).Error; err != nil {
+		t.Fatalf("tamper audit event: %v", err)
+	}
+	verification, err = registryStore.VerifyAuditChain(ctx)
+	if err != nil {
+		t.Fatalf("verify tampered audit chain: %v", err)
+	}
+	if verification.Valid || verification.FirstInvalidEventID != "00000000-0000-0000-0000-000000000001" {
+		t.Fatalf("expected tampered audit chain to fail on first event, got %#v", verification)
+	}
+	if err := registryStore.BackfillAuditChain(ctx); err != nil {
+		t.Fatalf("backfill tampered audit chain: %v", err)
+	}
+	verification, err = registryStore.VerifyAuditChain(ctx)
+	if err != nil {
+		t.Fatalf("verify tampered audit chain after backfill: %v", err)
+	}
+	if verification.Valid {
+		t.Fatalf("backfill should not repair a tampered non-empty audit hash, got %#v", verification)
 	}
 }

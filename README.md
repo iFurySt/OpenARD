@@ -41,6 +41,7 @@ ardctl admin status urn:air:example.com:server:weather disabled --registry-url h
 ardctl admin review approve urn:air:example.com:server:weather --registry-url https://registry.example.com
 ardctl admin audit --registry-url https://registry.example.com --admin-token "$ARD_ADMIN_TOKEN"
 ardctl admin audit --limit 10 --page-token "$PAGE_TOKEN" --registry-url https://registry.example.com
+ardctl admin audit --verify-chain --registry-url https://registry.example.com
 ard search "query observability logs" --kind mcp
 ard search "query observability logs" --limit 10 --page-token "$PAGE_TOKEN" --json
 ard search "query observability logs" --federation referrals --json
@@ -83,9 +84,10 @@ crawl, MCP/A2A/Skill/OpenAPI artifact onboarding, catalog verification, ARD sear
 explore facets, catalog export, local listing, entry removal, and token-protected admin
 API routes with an `ardctl admin` client. Admin flows can disable, reactivate, filter
 entries, apply ingestion policy, review pending entries, and inspect mutation audit
-events without exposing inactive resources through public discovery. Server deployments
-can use a single admin token or reloadable role-scoped admin token files. URL artifacts
-can be pinned and verified with `trustManifest.sourceDigest`. Search supports
+events without exposing inactive resources through public discovery. Audit events are
+hash-chained and can be verified through `ardctl admin audit --verify-chain`. Server
+deployments can use a single admin token or reloadable role-scoped admin token files. URL
+artifacts can be pinned and verified with `trustManifest.sourceDigest`. Search supports
 client-followed federation referrals, bounded server-side `federation=auto` upstream
 result merging, and opaque `pageToken` pagination for search, list, review, and audit
 responses. The registry also exposes request correlation, JSON access logs, and

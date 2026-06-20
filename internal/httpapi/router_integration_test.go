@@ -391,6 +391,9 @@ func TestRouterAdminAPIWithPostgres(t *testing.T) {
 	if err := registryStore.AutoMigrate(); err != nil {
 		t.Fatalf("migrate store: %v", err)
 	}
+	if err := registryStore.ClearAuditEventsForTesting(ctx); err != nil {
+		t.Fatalf("clean audit events: %v", err)
+	}
 	if _, err := registryStore.DeleteEntry(ctx, "urn:air:example.com:server:admin-weather"); err != nil {
 		t.Fatalf("clean admin entry: %v", err)
 	}
@@ -570,6 +573,9 @@ func TestRouterAdminAPIWithPostgres(t *testing.T) {
 	for _, event := range audit.Items {
 		if event.Identifier == "urn:air:example.com:server:admin-weather" {
 			seen[event.Action] = true
+			if event.Hash == "" {
+				t.Fatalf("expected audit event to include hash: %#v", event)
+			}
 			if event.Action == "entry.status" && event.Status == "" {
 				t.Fatalf("expected status audit event to include status: %#v", event)
 			}
@@ -631,6 +637,21 @@ func TestRouterAdminAPIWithPostgres(t *testing.T) {
 	router.ServeHTTP(invalidAuditPageResponse, invalidAuditPageRequest)
 	if invalidAuditPageResponse.Code != http.StatusBadRequest {
 		t.Fatalf("expected invalid audit page token HTTP 400, got %d: %s", invalidAuditPageResponse.Code, invalidAuditPageResponse.Body.String())
+	}
+
+	verifyAuditRequest := httptest.NewRequest(http.MethodGet, "/admin/audit/verify", nil)
+	verifyAuditRequest.Header.Set("Authorization", "Bearer test-token")
+	verifyAuditResponse := httptest.NewRecorder()
+	router.ServeHTTP(verifyAuditResponse, verifyAuditRequest)
+	if verifyAuditResponse.Code != http.StatusOK {
+		t.Fatalf("expected audit verify HTTP 200, got %d: %s", verifyAuditResponse.Code, verifyAuditResponse.Body.String())
+	}
+	var auditVerification store.AuditChainVerification
+	if err := json.Unmarshal(verifyAuditResponse.Body.Bytes(), &auditVerification); err != nil {
+		t.Fatalf("decode audit verification: %v", err)
+	}
+	if !auditVerification.Valid || auditVerification.Total < 3 || auditVerification.LastHash == "" {
+		t.Fatalf("expected valid audit chain verification, got %#v", auditVerification)
 	}
 }
 
