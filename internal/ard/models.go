@@ -486,26 +486,19 @@ func validateTrustManifest(identifier string, trustManifest map[string]any) erro
 	if !ok || identity == "" {
 		return errors.New("trustManifest.identity is required when trustManifest is present")
 	}
-	if parsed, err := url.Parse(identity); err == nil && parsed.Scheme != "" {
-		switch parsed.Scheme {
-		case "http", "https":
-			if parsed.Hostname() == "" {
-				return errors.New("trustManifest.identity URL must include a host")
-			}
-			publisher := Publisher(identifier)
-			if publisher != "" && !strings.EqualFold(parsed.Hostname(), publisher) {
-				return fmt.Errorf("trustManifest.identity host %q must match identifier publisher %q", parsed.Hostname(), publisher)
-			}
-		}
-	}
+	identityTypeString := ""
 	if identityType, ok := trustManifest["identityType"]; ok {
-		identityTypeString, ok := identityType.(string)
+		var ok bool
+		identityTypeString, ok = identityType.(string)
 		if !ok {
 			return errors.New("trustManifest.identityType must be a string")
 		}
 		if _, ok := supportedTrustIdentityTypes[identityTypeString]; !ok {
 			return errors.New("trustManifest.identityType must be one of spiffe, did, https, other")
 		}
+	}
+	if err := validateTrustIdentity(identifier, identity, identityTypeString); err != nil {
+		return err
 	}
 	if trustSchema, ok := trustManifest["trustSchema"]; ok {
 		if err := validateTrustSchema(trustSchema); err != nil {
@@ -537,6 +530,79 @@ func validateTrustManifest(identifier string, trustManifest map[string]any) erro
 		}
 	}
 	return nil
+}
+
+func validateTrustIdentity(identifier string, identity string, identityType string) error {
+	parsed, err := url.Parse(identity)
+	if err == nil {
+		switch parsed.Scheme {
+		case "http", "https", "spiffe":
+			if parsed.Hostname() == "" {
+				return fmt.Errorf("trustManifest.identity %s URI must include a host", parsed.Scheme)
+			}
+		case "did":
+			if _, _, ok := didParts(identity); !ok {
+				return errors.New("trustManifest.identity DID must be did:<method>:<method-specific-id>")
+			}
+		}
+	}
+
+	switch identityType {
+	case "https":
+		if err != nil || parsed.Scheme != "https" || parsed.Hostname() == "" {
+			return errors.New("trustManifest.identity must be an https URI when identityType is https")
+		}
+	case "spiffe":
+		if err != nil || parsed.Scheme != "spiffe" || parsed.Hostname() == "" {
+			return errors.New("trustManifest.identity must be a spiffe URI when identityType is spiffe")
+		}
+	case "did":
+		if _, _, ok := didParts(identity); !ok {
+			return errors.New("trustManifest.identity must be a DID when identityType is did")
+		}
+	}
+
+	publisher := Publisher(identifier)
+	if publisher == "" {
+		return nil
+	}
+	trustDomain, ok := trustIdentityDomain(identity)
+	if ok && !strings.EqualFold(trustDomain, publisher) {
+		return fmt.Errorf("trustManifest.identity trust domain %q must match identifier publisher %q", trustDomain, publisher)
+	}
+	return nil
+}
+
+func trustIdentityDomain(identity string) (string, bool) {
+	parsed, err := url.Parse(identity)
+	if err == nil {
+		switch parsed.Scheme {
+		case "http", "https", "spiffe":
+			if parsed.Hostname() != "" {
+				return parsed.Hostname(), true
+			}
+		case "did":
+			method, methodID, ok := didParts(identity)
+			if ok && method == "web" {
+				domain, _, _ := strings.Cut(methodID, ":")
+				if unescaped, err := url.PathUnescape(domain); err == nil && unescaped != "" {
+					return unescaped, true
+				}
+				if domain != "" {
+					return domain, true
+				}
+			}
+		}
+	}
+	return "", false
+}
+
+func didParts(identity string) (string, string, bool) {
+	parts := strings.SplitN(identity, ":", 3)
+	if len(parts) != 3 || parts[0] != "did" || parts[1] == "" || parts[2] == "" {
+		return "", "", false
+	}
+	return parts[1], parts[2], true
 }
 
 func validateTrustSchema(value any) error {

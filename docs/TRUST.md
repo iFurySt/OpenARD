@@ -83,12 +83,14 @@ verifiable `trustManifest.signature`.
   `metadata` value validation.
 - Implemented: `trustManifest.identityType` type and enum validation against the ARD
   schema values: `spiffe`, `did`, `https`, and `other`.
+- Implemented: `identityType` consistency checks for `https`, `spiffe`, and `did`
+  identities.
 - Implemented: `trustManifest.trustSchema` structure validation for required
   `identifier` and `version`, optional absolute `governanceUri`, and string
   `verificationMethods`.
 - Implemented: `trustManifest.signature` type validation.
-- Implemented: URL `trustManifest.identity` host must match the `urn:air:` publisher
-  domain.
+- Implemented: HTTP(S), SPIFFE, and `did:web` `trustManifest.identity` trust domains
+  must match the `urn:air:` publisher domain.
 - Implemented: `trustManifest.attestations` structure validation for required fields,
   absolute `uri` values, `mediaType` syntax, and optional `digest` format.
 - Implemented: `trustManifest.provenance` structure validation for required fields,
@@ -109,9 +111,10 @@ verifiable `trustManifest.signature`.
 - Not implemented yet: DID, SPIFFE, certificate, or key resolution.
 - Not implemented yet: externally anchored or signed audit trails.
 
-URL identity host matching is a metadata consistency check. It rejects entries that claim
-`urn:air:acme.com:*` while pointing `trustManifest.identity` at a different HTTP(S)
-host. It does not prove domain ownership, certificate identity, or signature validity.
+Identity trust-domain matching is a metadata consistency check. It rejects entries that
+claim `urn:air:acme.com:*` while pointing `trustManifest.identity` at a different
+HTTP(S), SPIFFE, or `did:web` trust domain. It does not prove domain ownership,
+certificate identity, DID document control, SPIFFE SVID validity, or signature validity.
 Catalog host trust metadata is validated for shape and URI syntax only because
 `host.identifier` is not a catalog entry `urn:air:` identifier.
 

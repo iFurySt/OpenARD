@@ -50,6 +50,8 @@ Use this document to make secure defaults explicit and legible to agents.
 - Catalog entry `identifier` values must be unique within a catalog import.
 - `trustManifest.identityType`, when present, must be one of the ARD schema values:
   `spiffe`, `did`, `https`, or `other`.
+- `trustManifest.identityType` must match the identity shape for `https`, `spiffe`, and
+  `did` identities.
 - `trustManifest.trustSchema` and `trustManifest.signature`, when present, are validated
   for schema shape and value types.
 - `trustManifest.attestations` and `trustManifest.provenance`, when present, are
@@ -58,8 +60,8 @@ Use this document to make secure defaults explicit and legible to agents.
 - Unknown fields are rejected from `trustManifest`, `trustManifest.trustSchema`,
   attestation items, and provenance items, except for the documented
   `trustManifest.sourceDigest` implementation extension.
-- Entry HTTP(S) `trustManifest.identity` hosts must match the `urn:air:` publisher
-  domain.
+- Entry HTTP(S), SPIFFE, and `did:web` `trustManifest.identity` trust domains must match
+  the `urn:air:` publisher domain.
 - `ard verify catalog --source-digests` fetches URL artifacts and verifies pinned
   `sha256` source digests.
 - `ard verify catalog --require-source-digests` requires every URL-delivered entry to

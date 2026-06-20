@@ -4,6 +4,7 @@
 
 | Date | Area | User Impact | Change Summary |
 | --- | --- | --- | --- |
+| 2026-06-21 | Security | Catalog imports catch more publisher impersonation mistakes before persistence. | Added `trustManifest.identityType` shape checks and trust-domain alignment for SPIFFE and `did:web` identities in addition to HTTP(S) identities. |
 | 2026-06-21 | Security | Enterprises can verify signed trust metadata before accepting catalog entries. | Added `ard verify catalog --jws-trust-anchors` for detached compact JWS `trustManifest.signature` verification with explicit Ed25519 trust anchors, plus `--require-jws-signatures` for strict signed-catalog gates. |
 | 2026-06-21 | Search | Local registry search returns stable relevance-ordered results before pagination. | Documented the first-release search contract and ordered local search results by relevance score descending with stable identifier/display/source tie-breakers, backed by unit and Postgres integration tests. |
 | 2026-06-21 | Security | Enterprises can fail catalog verification when URL artifacts are not pinned. | Added `ard verify catalog --require-source-digests`, which requires every URL-delivered entry to include `trustManifest.sourceDigest` and verifies all pinned source digests; embedded `data` entries remain exempt. |

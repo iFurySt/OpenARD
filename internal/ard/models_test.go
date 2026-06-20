@@ -323,9 +323,34 @@ func TestValidateCatalogEntryTrustManifestIdentityHost(t *testing.T) {
 		t.Fatal("expected mismatched identity host to be rejected")
 	}
 
+	entry.TrustManifest["identity"] = "https:///security"
+	if err := ValidateCatalogEntry(entry); err == nil {
+		t.Fatal("expected identity URI without host to be rejected")
+	}
+
 	entry.TrustManifest["identity"] = "did:web:acme.com"
 	if err := ValidateCatalogEntry(entry); err != nil {
 		t.Fatalf("expected non-URL identity to remain accepted for future resolvers: %v", err)
+	}
+
+	entry.TrustManifest["identity"] = "did:web:evil.example.com"
+	if err := ValidateCatalogEntry(entry); err == nil {
+		t.Fatal("expected mismatched did:web identity domain to be rejected")
+	}
+
+	entry.TrustManifest["identity"] = "spiffe://acme.com/ns/default/sa/weather"
+	if err := ValidateCatalogEntry(entry); err != nil {
+		t.Fatalf("expected matching SPIFFE trust domain: %v", err)
+	}
+
+	entry.TrustManifest["identity"] = "spiffe://evil.example.com/ns/default/sa/weather"
+	if err := ValidateCatalogEntry(entry); err == nil {
+		t.Fatal("expected mismatched SPIFFE trust domain to be rejected")
+	}
+
+	entry.TrustManifest["identity"] = "did:key:z6Mkacme"
+	if err := ValidateCatalogEntry(entry); err != nil {
+		t.Fatalf("expected non-web DID identity to remain accepted for future resolvers: %v", err)
 	}
 }
 
@@ -352,6 +377,49 @@ func TestValidateCatalogEntryTrustManifestIdentityType(t *testing.T) {
 	entry.TrustManifest["identityType"] = 42
 	if err := ValidateCatalogEntry(entry); err == nil {
 		t.Fatal("expected non-string identityType to be rejected")
+	}
+}
+
+func TestValidateCatalogEntryTrustManifestIdentityTypeMatchesIdentity(t *testing.T) {
+	entry := CatalogEntry{
+		Identifier:  "urn:air:acme.com:server:weather",
+		DisplayName: "Weather Data Node",
+		Type:        TypeMCPServerCard,
+		URL:         "https://api.acme.com/mcp/weather.json",
+		TrustManifest: map[string]any{
+			"identity":     "spiffe://acme.com/ns/default/sa/weather",
+			"identityType": "spiffe",
+		},
+	}
+	if err := ValidateCatalogEntry(entry); err != nil {
+		t.Fatalf("expected SPIFFE identityType to match SPIFFE URI: %v", err)
+	}
+
+	entry.TrustManifest["identity"] = "https://acme.com/security"
+	if err := ValidateCatalogEntry(entry); err == nil {
+		t.Fatal("expected SPIFFE identityType with HTTPS identity to be rejected")
+	}
+
+	entry.TrustManifest["identity"] = "did:web:acme.com"
+	entry.TrustManifest["identityType"] = "did"
+	if err := ValidateCatalogEntry(entry); err != nil {
+		t.Fatalf("expected DID identityType to match DID identity: %v", err)
+	}
+
+	entry.TrustManifest["identity"] = "not-a-did"
+	if err := ValidateCatalogEntry(entry); err == nil {
+		t.Fatal("expected DID identityType with non-DID identity to be rejected")
+	}
+
+	entry.TrustManifest["identity"] = "https://acme.com/security"
+	entry.TrustManifest["identityType"] = "https"
+	if err := ValidateCatalogEntry(entry); err != nil {
+		t.Fatalf("expected HTTPS identityType to match HTTPS URI: %v", err)
+	}
+
+	entry.TrustManifest["identity"] = "http://acme.com/security"
+	if err := ValidateCatalogEntry(entry); err == nil {
+		t.Fatal("expected HTTPS identityType with HTTP identity to be rejected")
 	}
 }
 
