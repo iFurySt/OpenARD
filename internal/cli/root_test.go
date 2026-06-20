@@ -29,6 +29,9 @@ func TestCLICommandOmitsServe(t *testing.T) {
 	if _, _, err := command.Find([]string{"search"}); err != nil {
 		t.Fatalf("expected ardctl search command: %v", err)
 	}
+	if _, _, err := command.Find([]string{"export"}); err != nil {
+		t.Fatalf("expected ardctl export command: %v", err)
+	}
 }
 
 func TestServerCommandRunsAtRoot(t *testing.T) {

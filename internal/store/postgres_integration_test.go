@@ -76,4 +76,21 @@ func TestPostgresImportAndSearch(t *testing.T) {
 	if results[0].Score <= 0 {
 		t.Fatalf("expected positive relevance score, got %d", results[0].Score)
 	}
+
+	exported, err := registryStore.ExportCatalog(ctx, &ard.HostInfo{DisplayName: "Integration Registry"})
+	if err != nil {
+		t.Fatalf("export catalog: %v", err)
+	}
+	if exported.SpecVersion != "1.0" {
+		t.Fatalf("unexpected exported spec version: %s", exported.SpecVersion)
+	}
+	if exported.Host == nil || exported.Host.DisplayName != "Integration Registry" {
+		t.Fatalf("unexpected exported host: %#v", exported.Host)
+	}
+	if len(exported.Entries) < 2 {
+		t.Fatalf("expected exported entries, got %d", len(exported.Entries))
+	}
+	if err := ard.ValidateCatalog(exported); err != nil {
+		t.Fatalf("exported catalog should validate: %v", err)
+	}
 }

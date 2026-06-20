@@ -133,6 +133,30 @@ func (store *Store) List(ctx context.Context, limit int) ([]ard.CatalogEntry, in
 	return entries, total, nil
 }
 
+func (store *Store) ExportCatalog(ctx context.Context, host *ard.HostInfo) (ard.Catalog, error) {
+	var records []CatalogEntryRecord
+	if err := store.db.WithContext(ctx).Order("display_name ASC").Find(&records).Error; err != nil {
+		return ard.Catalog{}, err
+	}
+	entries := make([]ard.CatalogEntry, 0, len(records))
+	for _, record := range records {
+		entry, err := record.ToCatalogEntry()
+		if err != nil {
+			return ard.Catalog{}, err
+		}
+		entries = append(entries, entry)
+	}
+	catalog := ard.Catalog{
+		SpecVersion: "1.0",
+		Host:        host,
+		Entries:     entries,
+	}
+	if catalog.Host != nil && catalog.Host.DisplayName == "" {
+		catalog.Host = nil
+	}
+	return catalog, nil
+}
+
 func (store *Store) Explore(ctx context.Context, request ard.ExploreRequest) (ard.ExploreResponse, error) {
 	records, err := store.matchingRecords(ctx, request.Query, "", 0)
 	if err != nil {

@@ -8,14 +8,15 @@ Cobra, Gin, GORM, and Postgres.
 - Registry server: self-hosted ARD registry exposing discovery, search, health, and
   catalog endpoints through Gin.
 - CLI: Cobra operational entry point for `serve`, `add catalog`, `add mcp`, `add a2a`,
-  `add skill`, `crawl`, `verify catalog`, and `search` today; export flows remain
-  planned.
+  `add skill`, `crawl`, `export catalog`, `verify catalog`, and `search` today.
 - Entrypoints: `cmd/ard` ships the combined toolkit, `cmd/ardctl` ships client and
   management operations without server startup, and `cmd/ard-server` ships a dedicated
   registry server binary.
 - Client flow: `ard search` sends spec-shaped `SearchRequest` bodies to a registry.
 - Catalog ingestion: `ard add catalog` loads local or remote `ai-catalog.json` files,
   validates them, and persists entries.
+- Catalog export: `ardctl export catalog` writes persisted registry entries as a
+  spec-shaped `ai-catalog.json` for backup, migration, or well-known publication.
 - Artifact onboarding: `ard add mcp`, `ard add a2a`, and `ard add skill` translate real
   MCP server cards, A2A agent cards, and Skill markdown files into ARD catalog entries.
 - Verification engine: initial schema-level checks cover `urn:air:`, required fields,
@@ -105,8 +106,8 @@ boundary without changing HTTP contracts.
 - `GET /agents`: optional deterministic browse endpoint; implemented for basic listing.
 - `GET /health`: deployment health. Implemented.
 - CLI equivalents: `serve`, `add catalog`, `add mcp`, `add a2a`, `add skill`, `crawl`,
-  `verify catalog`, and `search` are implemented. `ard-server` runs the same server
-  without exposing management subcommands. `export` is planned.
+  `export catalog`, `verify catalog`, and `search` are implemented. `ard-server` runs
+  the same server without exposing management subcommands.
 
 ## Specification Alignment
 
