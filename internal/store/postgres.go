@@ -112,6 +112,15 @@ type ListFilter struct {
 	Metadata     map[string][]string
 	CreatedAfter *time.Time
 	UpdatedAfter *time.Time
+	Clauses      []ListFilterClause
+}
+
+type ListFilterClause struct {
+	Field       string
+	MetadataKey string
+	Operator    string
+	Values      []string
+	Time        *time.Time
 }
 
 type ListOrder struct {
@@ -351,6 +360,12 @@ func (store *Store) ListEntriesPage(ctx context.Context, options ListOptions) (L
 }
 
 func applyListFilter(query *gorm.DB, filter ListFilter) *gorm.DB {
+	if len(filter.Clauses) > 0 {
+		for _, clause := range filter.Clauses {
+			query = applyListFilterClause(query, clause)
+		}
+		return query
+	}
 	if len(filter.DisplayName) > 0 {
 		query = query.Where(orTextContainsClause("display_name", len(filter.DisplayName)), likeValues(filter.DisplayName)...)
 	}
@@ -378,6 +393,106 @@ func applyListFilter(query *gorm.DB, filter ListFilter) *gorm.DB {
 		query = query.Where("updated_at > ?", *filter.UpdatedAfter)
 	}
 	return query
+}
+
+func applyListFilterClause(query *gorm.DB, filter ListFilterClause) *gorm.DB {
+	switch filter.Field {
+	case "displayName":
+		return applyTextClause(query, "display_name", filter.Operator, filter.Values)
+	case "type":
+		return applyExactOrTextClause(query, "type", filter.Operator, filter.Values)
+	case "publisherId":
+		return applyPublisherClause(query, filter.Operator, filter.Values)
+	case "tags":
+		return applyJSONArrayClause(query, "tags", filter.Operator, filter.Values)
+	case "capabilities":
+		return applyJSONArrayClause(query, "capabilities", filter.Operator, filter.Values)
+	case "metadata":
+		return applyMetadataClause(query, filter.MetadataKey, filter.Operator, filter.Values)
+	case "createdAfter":
+		return applyTimeClause(query, "created_at", filter.Operator, filter)
+	case "updatedAfter":
+		return applyTimeClause(query, "updated_at", filter.Operator, filter)
+	default:
+		return query
+	}
+}
+
+func applyTextClause(query *gorm.DB, column string, operator string, values []string) *gorm.DB {
+	switch operator {
+	case "=", "contains":
+		return query.Where(orTextContainsClause(column, len(values)), likeValues(values)...)
+	case "!=":
+		return query.Where("NOT "+orTextContainsClause(column, len(values)), likeValues(values)...)
+	default:
+		return query
+	}
+}
+
+func applyExactOrTextClause(query *gorm.DB, column string, operator string, values []string) *gorm.DB {
+	switch operator {
+	case "=":
+		return query.Where(column+" IN ?", values)
+	case "!=":
+		return query.Where(column+" NOT IN ?", values)
+	case "contains":
+		return query.Where(orTextContainsClause(column, len(values)), likeValues(values)...)
+	default:
+		return query
+	}
+}
+
+func applyPublisherClause(query *gorm.DB, operator string, values []string) *gorm.DB {
+	switch operator {
+	case "=":
+		return query.Where(orPublisherClause(len(values)), publisherLikeValues(values)...)
+	case "!=":
+		return query.Where("NOT "+orPublisherClause(len(values)), publisherLikeValues(values)...)
+	case "contains":
+		return query.Where(orPublisherContainsClause(len(values)), publisherContainsLikeValues(values)...)
+	default:
+		return query
+	}
+}
+
+func applyJSONArrayClause(query *gorm.DB, column string, operator string, values []string) *gorm.DB {
+	switch operator {
+	case "=":
+		return query.Where("EXISTS (SELECT 1 FROM jsonb_array_elements_text(COALESCE("+column+", '[]'::jsonb)) AS item(value) WHERE item.value IN ?)", values)
+	case "!=":
+		return query.Where("NOT EXISTS (SELECT 1 FROM jsonb_array_elements_text(COALESCE("+column+", '[]'::jsonb)) AS item(value) WHERE item.value IN ?)", values)
+	case "contains":
+		return query.Where("EXISTS (SELECT 1 FROM jsonb_array_elements_text(COALESCE("+column+", '[]'::jsonb)) AS item(value) WHERE "+orTextContainsClause("item.value", len(values))+")", likeValues(values)...)
+	default:
+		return query
+	}
+}
+
+func applyMetadataClause(query *gorm.DB, key string, operator string, values []string) *gorm.DB {
+	switch operator {
+	case "=":
+		return query.Where("metadata ->> ? IN ?", key, values)
+	case "!=":
+		return query.Where("(metadata ->> ? IS NULL OR metadata ->> ? NOT IN ?)", key, key, values)
+	case "contains":
+		return query.Where(orMetadataContainsClause(len(values)), metadataContainsValues(key, values)...)
+	default:
+		return query
+	}
+}
+
+func applyTimeClause(query *gorm.DB, column string, operator string, filter ListFilterClause) *gorm.DB {
+	if filter.Time == nil {
+		return query
+	}
+	switch operator {
+	case ">":
+		return query.Where(column+" > ?", *filter.Time)
+	case ">=":
+		return query.Where(column+" >= ?", *filter.Time)
+	default:
+		return query
+	}
 }
 
 func listOrderClause(order ListOrder) string {
@@ -409,6 +524,14 @@ func orTextContainsClause(column string, count int) string {
 	return "(" + strings.Join(clauses, " OR ") + ")"
 }
 
+func orMetadataContainsClause(count int) string {
+	clauses := make([]string, 0, count)
+	for range count {
+		clauses = append(clauses, "metadata ->> ? ILIKE ?")
+	}
+	return "(" + strings.Join(clauses, " OR ") + ")"
+}
+
 func orPublisherClause(count int) string {
 	clauses := make([]string, 0, count)
 	for range count {
@@ -417,10 +540,34 @@ func orPublisherClause(count int) string {
 	return "(" + strings.Join(clauses, " OR ") + ")"
 }
 
+func orPublisherContainsClause(count int) string {
+	clauses := make([]string, 0, count)
+	for range count {
+		clauses = append(clauses, "identifier ILIKE ? ESCAPE '\\'")
+	}
+	return "(" + strings.Join(clauses, " OR ") + ")"
+}
+
 func likeValues(values []string) []any {
 	arguments := make([]any, 0, len(values))
 	for _, value := range values {
 		arguments = append(arguments, "%"+escapeLike(value)+"%")
+	}
+	return arguments
+}
+
+func publisherContainsLikeValues(values []string) []any {
+	arguments := make([]any, 0, len(values))
+	for _, value := range values {
+		arguments = append(arguments, "urn:air:%"+escapeLike(value)+"%:%")
+	}
+	return arguments
+}
+
+func metadataContainsValues(key string, values []string) []any {
+	arguments := make([]any, 0, len(values)*2)
+	for _, value := range values {
+		arguments = append(arguments, key, "%"+escapeLike(value)+"%")
 	}
 	return arguments
 }

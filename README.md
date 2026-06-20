@@ -35,6 +35,7 @@ ard crawl
 ardctl list --kind mcp
 ardctl list --filter "publisherId = 'github.com'" --order-by "displayName DESC"
 ardctl list --filter "tags = 'skill' AND metadata.adapter = 'skill'"
+ardctl list --filter "displayName contains 'browser' AND type != 'application/mcp-server-card+json'"
 ardctl browse --registry-url https://registry.example.com --filter "publisherId = 'github.com'" --json
 ardctl remove urn:air:example.com:server:weather --yes
 ardctl export catalog -o ai-catalog.json
@@ -70,6 +71,7 @@ bin/ard --database-url "$DATABASE_URL" add skill ./internal/adapters/testdata/op
 bin/ardctl --database-url "$DATABASE_URL" list --kind mcp
 bin/ardctl --database-url "$DATABASE_URL" list --filter "type = 'application/mcp-server-card+json'" --order-by "displayName DESC"
 bin/ardctl --database-url "$DATABASE_URL" list --filter "capabilities = 'ForecastTool'"
+bin/ardctl --database-url "$DATABASE_URL" list --filter "tags contains 'weath' AND capabilities != 'BlockedTool'"
 bin/ard verify catalog ./internal/catalog/testdata/acme-ai-catalog.json
 bin/ard --database-url "$DATABASE_URL" crawl https://example.com/
 bin/ardctl --database-url "$DATABASE_URL" export catalog -o ai-catalog.json

@@ -27,61 +27,85 @@ func ParseListFilterExpression(expression string) (ListFilter, error) {
 		}
 		switch field {
 		case "displayName":
-			if operator != "=" {
-				return ListFilter{}, fmt.Errorf("filter field %q only supports =", field)
+			if !listFilterOperatorAllowed(operator, "=", "!=", "contains") {
+				return ListFilter{}, unsupportedListFilterOperator(field, "=", "!=", "contains")
 			}
-			filter.DisplayName = append(filter.DisplayName, values...)
+			filter.Clauses = append(filter.Clauses, listFilterClause(field, "", operator, values))
+			if operator == "=" {
+				filter.DisplayName = append(filter.DisplayName, values...)
+			}
 		case "type":
-			if operator != "=" {
-				return ListFilter{}, fmt.Errorf("filter field %q only supports =", field)
+			if !listFilterOperatorAllowed(operator, "=", "!=", "contains") {
+				return ListFilter{}, unsupportedListFilterOperator(field, "=", "!=", "contains")
 			}
-			filter.Types = append(filter.Types, values...)
+			filter.Clauses = append(filter.Clauses, listFilterClause(field, "", operator, values))
+			if operator == "=" {
+				filter.Types = append(filter.Types, values...)
+			}
 		case "publisherId":
-			if operator != "=" {
-				return ListFilter{}, fmt.Errorf("filter field %q only supports =", field)
+			if !listFilterOperatorAllowed(operator, "=", "!=", "contains") {
+				return ListFilter{}, unsupportedListFilterOperator(field, "=", "!=", "contains")
 			}
-			filter.PublisherIDs = append(filter.PublisherIDs, values...)
+			filter.Clauses = append(filter.Clauses, listFilterClause(field, "", operator, values))
+			if operator == "=" {
+				filter.PublisherIDs = append(filter.PublisherIDs, values...)
+			}
 		case "tags":
-			if operator != "=" {
-				return ListFilter{}, fmt.Errorf("filter field %q only supports =", field)
+			if !listFilterOperatorAllowed(operator, "=", "!=", "contains") {
+				return ListFilter{}, unsupportedListFilterOperator(field, "=", "!=", "contains")
 			}
-			filter.Tags = append(filter.Tags, values...)
+			filter.Clauses = append(filter.Clauses, listFilterClause(field, "", operator, values))
+			if operator == "=" {
+				filter.Tags = append(filter.Tags, values...)
+			}
 		case "capabilities":
-			if operator != "=" {
-				return ListFilter{}, fmt.Errorf("filter field %q only supports =", field)
+			if !listFilterOperatorAllowed(operator, "=", "!=", "contains") {
+				return ListFilter{}, unsupportedListFilterOperator(field, "=", "!=", "contains")
 			}
-			filter.Capabilities = append(filter.Capabilities, values...)
+			filter.Clauses = append(filter.Clauses, listFilterClause(field, "", operator, values))
+			if operator == "=" {
+				filter.Capabilities = append(filter.Capabilities, values...)
+			}
 		case "createdAfter":
-			if operator != ">" {
-				return ListFilter{}, fmt.Errorf("filter field %q only supports >", field)
+			if !listFilterOperatorAllowed(operator, ">", ">=") {
+				return ListFilter{}, unsupportedListFilterOperator(field, ">", ">=")
 			}
 			timestamp, err := singleListFilterTime(field, values)
 			if err != nil {
 				return ListFilter{}, err
 			}
-			filter.CreatedAfter = &timestamp
+			filter.Clauses = append(filter.Clauses, listFilterTimeClause(field, operator, timestamp))
+			if operator == ">" {
+				filter.CreatedAfter = &timestamp
+			}
 		case "updatedAfter":
-			if operator != ">" {
-				return ListFilter{}, fmt.Errorf("filter field %q only supports >", field)
+			if !listFilterOperatorAllowed(operator, ">", ">=") {
+				return ListFilter{}, unsupportedListFilterOperator(field, ">", ">=")
 			}
 			timestamp, err := singleListFilterTime(field, values)
 			if err != nil {
 				return ListFilter{}, err
 			}
-			filter.UpdatedAfter = &timestamp
+			filter.Clauses = append(filter.Clauses, listFilterTimeClause(field, operator, timestamp))
+			if operator == ">" {
+				filter.UpdatedAfter = &timestamp
+			}
 		default:
 			if strings.HasPrefix(field, "metadata.") {
-				if operator != "=" {
-					return ListFilter{}, fmt.Errorf("filter field %q only supports =", field)
+				if !listFilterOperatorAllowed(operator, "=", "!=", "contains") {
+					return ListFilter{}, unsupportedListFilterOperator(field, "=", "!=", "contains")
 				}
 				key, err := listMetadataKey(field)
 				if err != nil {
 					return ListFilter{}, err
 				}
+				filter.Clauses = append(filter.Clauses, listFilterClause("metadata", key, operator, values))
 				if filter.Metadata == nil {
 					filter.Metadata = map[string][]string{}
 				}
-				filter.Metadata[key] = append(filter.Metadata[key], values...)
+				if operator == "=" {
+					filter.Metadata[key] = append(filter.Metadata[key], values...)
+				}
 				continue
 			}
 			return ListFilter{}, fmt.Errorf("unsupported filter field %q", field)
@@ -145,7 +169,7 @@ func hasListFilterANDAt(expression string, index int) bool {
 }
 
 func splitListFilterClause(clause string) (string, string, string, error) {
-	for _, operator := range []string{">=", ">", "="} {
+	for _, operator := range []string{">=", "!=", ">", "="} {
 		if index := indexOutsideQuotes(clause, operator); index >= 0 {
 			field := strings.TrimSpace(clause[:index])
 			value := strings.TrimSpace(clause[index+len(operator):])
@@ -155,7 +179,44 @@ func splitListFilterClause(clause string) (string, string, string, error) {
 			return field, operator, value, nil
 		}
 	}
+	if field, value, ok := splitListFilterKeywordOperator(clause, "contains"); ok {
+		return field, "contains", value, nil
+	}
 	return "", "", "", fmt.Errorf("invalid filter clause %q", clause)
+}
+
+func splitListFilterKeywordOperator(clause string, operator string) (string, string, bool) {
+	quoted := rune(0)
+	operatorLength := len(operator)
+	for index, char := range clause {
+		if quoted != 0 {
+			if char == quoted {
+				quoted = 0
+			}
+			continue
+		}
+		if char == '\'' || char == '"' {
+			quoted = char
+			continue
+		}
+		if index+operatorLength > len(clause) || !strings.EqualFold(clause[index:index+operatorLength], operator) {
+			continue
+		}
+		beforeOK := index == 0 || isListFilterWhitespace(rune(clause[index-1]))
+		afterIndex := index + operatorLength
+		afterOK := afterIndex == len(clause) || isListFilterWhitespace(rune(clause[afterIndex]))
+		if !beforeOK || !afterOK {
+			continue
+		}
+		field := strings.TrimSpace(clause[:index])
+		value := strings.TrimSpace(clause[afterIndex:])
+		return field, value, field != "" && value != ""
+	}
+	return "", "", false
+}
+
+func isListFilterWhitespace(char rune) bool {
+	return char == ' ' || char == '\t' || char == '\n' || char == '\r'
 }
 
 func indexOutsideQuotes(value string, needle string) int {
@@ -261,6 +322,36 @@ func listMetadataKey(field string) (string, error) {
 		}
 	}
 	return key, nil
+}
+
+func listFilterClause(field string, metadataKey string, operator string, values []string) ListFilterClause {
+	return ListFilterClause{
+		Field:       field,
+		MetadataKey: metadataKey,
+		Operator:    operator,
+		Values:      append([]string(nil), values...),
+	}
+}
+
+func listFilterTimeClause(field string, operator string, timestamp time.Time) ListFilterClause {
+	return ListFilterClause{
+		Field:    field,
+		Operator: operator,
+		Time:     &timestamp,
+	}
+}
+
+func listFilterOperatorAllowed(operator string, allowed ...string) bool {
+	for _, candidate := range allowed {
+		if operator == candidate {
+			return true
+		}
+	}
+	return false
+}
+
+func unsupportedListFilterOperator(field string, allowed ...string) error {
+	return fmt.Errorf("filter field %q only supports %s", field, strings.Join(allowed, ", "))
 }
 
 func normalizeListOrderField(field string) (string, error) {

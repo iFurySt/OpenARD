@@ -234,6 +234,21 @@ func TestPostgresImportAndSearch(t *testing.T) {
 		t.Fatalf("expected filtered weather entry, got %#v", filteredListed)
 	}
 
+	richFilter, err := ParseListFilterExpression("type != 'application/a2a-agent-card+json' AND displayName contains 'Weather' AND publisherId contains 'acme' AND tags contains 'weath' AND capabilities != 'BlockedTool' AND metadata.adapter != 'skill' AND metadata.tier contains 'go'")
+	if err != nil {
+		t.Fatalf("parse rich list filter: %v", err)
+	}
+	richFilteredListed, _, err := registryStore.ListEntries(ctx, ListOptions{
+		Limit:  10,
+		Filter: richFilter,
+	})
+	if err != nil {
+		t.Fatalf("list entries with rich filters: %v", err)
+	}
+	if len(richFilteredListed) != 1 || richFilteredListed[0].Identifier != "urn:air:acme.com:server:weather" {
+		t.Fatalf("expected rich filtered weather entry, got %#v", richFilteredListed)
+	}
+
 	governedCatalog := ard.Catalog{
 		SpecVersion: "1.0",
 		Entries: []ard.CatalogEntry{

@@ -8,7 +8,7 @@ import (
 )
 
 func TestParseListFilterExpression(t *testing.T) {
-	filter, err := ParseListFilterExpression("type = 'application/mcp-server-card+json', 'application/a2a-agent-card+json' AND displayName = 'Weather' AND publisherId = 'example.com' AND tags = 'weather' AND capabilities = 'ForecastTool' AND metadata.adapter = 'mcp' AND createdAfter > '2026-01-01'")
+	filter, err := ParseListFilterExpression("type = 'application/mcp-server-card+json', 'application/a2a-agent-card+json' AND displayName = 'Weather' AND publisherId = 'example.com' AND tags = 'weather' AND capabilities = 'ForecastTool' AND metadata.adapter = 'mcp' AND createdAfter > '2026-01-01' AND updatedAfter >= '2026-01-02T00:00:00Z'")
 	if err != nil {
 		t.Fatalf("parse list filter: %v", err)
 	}
@@ -33,6 +33,42 @@ func TestParseListFilterExpression(t *testing.T) {
 	if filter.CreatedAfter == nil {
 		t.Fatal("expected createdAfter filter to parse")
 	}
+	if len(filter.Clauses) != 8 {
+		t.Fatalf("unexpected parsed clauses: %#v", filter.Clauses)
+	}
+	if got := filter.Clauses[7]; got.Field != "updatedAfter" || got.Operator != ">=" || got.Time == nil {
+		t.Fatalf("unexpected updatedAfter clause: %#v", got)
+	}
+}
+
+func TestParseListFilterExpressionSupportsRichOperators(t *testing.T) {
+	filter, err := ParseListFilterExpression("type != 'application/a2a-agent-card+json' AND displayName contains 'Weather' AND publisherId contains 'example' AND tags contains 'weath' AND capabilities != 'BlockedTool' AND metadata.adapter != 'skill' AND metadata.tier contains 'go'")
+	if err != nil {
+		t.Fatalf("parse rich list filter: %v", err)
+	}
+	if len(filter.Clauses) != 7 {
+		t.Fatalf("unexpected parsed clauses: %#v", filter.Clauses)
+	}
+	expected := []struct {
+		field       string
+		metadataKey string
+		operator    string
+		value       string
+	}{
+		{field: "type", operator: "!=", value: ard.TypeA2AAgentCard},
+		{field: "displayName", operator: "contains", value: "Weather"},
+		{field: "publisherId", operator: "contains", value: "example"},
+		{field: "tags", operator: "contains", value: "weath"},
+		{field: "capabilities", operator: "!=", value: "BlockedTool"},
+		{field: "metadata", metadataKey: "adapter", operator: "!=", value: "skill"},
+		{field: "metadata", metadataKey: "tier", operator: "contains", value: "go"},
+	}
+	for index, want := range expected {
+		got := filter.Clauses[index]
+		if got.Field != want.field || got.MetadataKey != want.metadataKey || got.Operator != want.operator || len(got.Values) != 1 || got.Values[0] != want.value {
+			t.Fatalf("unexpected clause %d: got %#v want %#v", index, got, want)
+		}
+	}
 }
 
 func TestParseListFilterExpressionRejectsUnsupportedFields(t *testing.T) {
@@ -48,7 +84,7 @@ func TestParseListFilterExpressionRejectsUnsupportedFields(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected unsupported timestamp operator to be rejected")
 	}
-	if !strings.Contains(err.Error(), `filter field "updatedAfter" only supports >`) {
+	if !strings.Contains(err.Error(), `filter field "updatedAfter" only supports >, >=`) {
 		t.Fatalf("unexpected timestamp operator error: %v", err)
 	}
 

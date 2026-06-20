@@ -548,6 +548,20 @@ func TestRouterAgentsAndExploreWithPostgres(t *testing.T) {
 		t.Fatalf("expected field-filtered list to return Weather Facet MCP, got %#v", fieldFilteredList.Items)
 	}
 
+	richFilteredListRequest := httptest.NewRequest(http.MethodGet, "/agents?filter="+url.QueryEscape("type != 'application/openapi+json' AND displayName contains 'Facet' AND publisherId contains 'example' AND tags contains 'weath' AND capabilities != 'BlockedTool' AND metadata.domain contains 'weath'"), nil)
+	richFilteredListResponse := httptest.NewRecorder()
+	router.ServeHTTP(richFilteredListResponse, richFilteredListRequest)
+	if richFilteredListResponse.Code != http.StatusOK {
+		t.Fatalf("expected rich-filtered /agents HTTP 200, got %d: %s", richFilteredListResponse.Code, richFilteredListResponse.Body.String())
+	}
+	var richFilteredList ard.ListResponse
+	if err := json.Unmarshal(richFilteredListResponse.Body.Bytes(), &richFilteredList); err != nil {
+		t.Fatalf("decode rich-filtered list response: %v", err)
+	}
+	if len(richFilteredList.Items) != 1 || richFilteredList.Items[0].Identifier != "urn:air:example.com:server:weather-facet" {
+		t.Fatalf("expected rich-filtered list to return Weather Facet MCP, got %#v", richFilteredList.Items)
+	}
+
 	publisherOrderedListRequest := httptest.NewRequest(http.MethodGet, "/agents?filter="+url.QueryEscape("publisherId = 'example.com'")+"&orderBy="+url.QueryEscape("displayName DESC"), nil)
 	publisherOrderedListResponse := httptest.NewRecorder()
 	router.ServeHTTP(publisherOrderedListResponse, publisherOrderedListRequest)

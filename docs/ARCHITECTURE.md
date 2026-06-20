@@ -32,6 +32,9 @@ Cobra, Gin, GORM, and Postgres.
   filtering plus whitelisted ordering instead of ignoring malformed pagination or browse
   options. `ardctl browse` calls this public endpoint without admin credentials and
   exposes filter, order, limit, and page-token flags for remote registry inventory.
+  Filters support `AND` clauses with equality, exclusion, substring containment, and
+  timestamp boundary operators across common spec fields, tags, capabilities, and
+  metadata keys.
 - Federation referrals: `POST /search` supports `federation=referrals` by returning
   active `application/ai-registry+json` entries in `SearchResponse.referrals` for
   client-followed federation.
@@ -209,8 +212,8 @@ boundary without changing HTTP contracts.
 - `GET /agents`: optional deterministic browse endpoint with validated `pageSize` and
   `pageToken`, EBNF-like `filter` support for `displayName`, `type`, `publisherId`,
   `tags`, `capabilities`, `metadata.<key>`, `createdAfter`, and `updatedAfter`, plus
-  whitelisted `orderBy` for display name, type, publisher, creation time, and update
-  time.
+  `=`, `!=`, `contains`, `>`, and `>=` operators where meaningful. `orderBy` is
+  whitelisted for display name, type, publisher, creation time, and update time.
 - `GET /health`: deployment health. Implemented.
 - `GET /metrics`: Prometheus-style operational metrics. Implemented.
 - `/admin/*`: implementation-specific management routes; disabled unless an admin token

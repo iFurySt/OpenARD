@@ -4,6 +4,7 @@
 
 | Date | Area | User Impact | Change Summary |
 | --- | --- | --- | --- |
+| 2026-06-21 | API | Registry inventories can express exclusion and substring filters without exporting the whole catalog. | Extended shared `/agents`, `ardctl browse`, and `ardctl list` filters with `!=`, `contains`, and `>=` operators, backed by parser tests, Postgres integration coverage, HTTP integration coverage, and real E2E checks. |
 | 2026-06-21 | SDK | Enterprise tools can manage a registry from Go without shelling out to `ardctl admin`. | Added token-protected admin methods to `pkg/client` for list/review/export/upsert/status/delete/audit workflows, plus unit tests, external import checks, and real E2E coverage against a live registry. |
 | 2026-06-21 | API | Other ARD crawlers can consume a self-hosted registry's active catalog directly from the well-known URL. | Changed `/.well-known/ai-catalog.json` from a registry-only stub to a public catalog containing the registry self entry plus active entries, with pending/disabled entries excluded and E2E/compose coverage. |
 | 2026-06-21 | API | Clients can browse registries by capability, tag, and metadata fields instead of only publisher and type. | Extended shared `/agents`, `ardctl browse`, and `ardctl list` filters with `tags`, `capabilities`, and `metadata.<key>` support backed by Postgres, integration tests, and real E2E coverage. |
