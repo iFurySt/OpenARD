@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"sort"
 	"strconv"
@@ -231,11 +232,15 @@ func mergeSearchResults(local []ard.SearchResult, upstream []ard.SearchResult, l
 }
 
 func (server Server) agents(context *gin.Context) {
-	limit, _ := strconv.Atoi(context.DefaultQuery("pageSize", "20"))
-	page, err := server.store.ListEntriesPage(context.Request.Context(), store.ListOptions{
-		Limit:     limit,
-		PageToken: context.Query("pageToken"),
-	})
+	options, err := parseAgentsListOptions(context)
+	if err != nil {
+		context.JSON(http.StatusBadRequest, gin.H{
+			"errorCode": "INVALID_ARGUMENT",
+			"message":   err.Error(),
+		})
+		return
+	}
+	page, err := server.store.ListEntriesPage(context.Request.Context(), options)
 	if err != nil {
 		if errors.Is(err, pagination.ErrInvalidToken) {
 			context.JSON(http.StatusBadRequest, gin.H{
@@ -255,6 +260,37 @@ func (server Server) agents(context *gin.Context) {
 		Total:     int(page.Total),
 		PageToken: page.NextPageToken,
 	})
+}
+
+func parseAgentsListOptions(context *gin.Context) (store.ListOptions, error) {
+	for parameter := range context.Request.URL.Query() {
+		switch parameter {
+		case "pageSize", "pageToken":
+			continue
+		case "filter":
+			return store.ListOptions{}, errors.New("filter query parameter is not supported yet")
+		case "orderBy":
+			return store.ListOptions{}, errors.New("orderBy query parameter is not supported yet")
+		default:
+			return store.ListOptions{}, fmt.Errorf("unsupported query parameter %q", parameter)
+		}
+	}
+
+	limit := 20
+	if rawPageSize := strings.TrimSpace(context.Query("pageSize")); rawPageSize != "" {
+		parsed, err := strconv.Atoi(rawPageSize)
+		if err != nil {
+			return store.ListOptions{}, errors.New("pageSize must be an integer")
+		}
+		if parsed < 1 || parsed > 100 {
+			return store.ListOptions{}, errors.New("pageSize must be between 1 and 100")
+		}
+		limit = parsed
+	}
+	return store.ListOptions{
+		Limit:     limit,
+		PageToken: context.Query("pageToken"),
+	}, nil
 }
 
 func (server Server) explore(context *gin.Context) {

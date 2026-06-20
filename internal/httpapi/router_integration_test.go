@@ -401,6 +401,48 @@ func TestRouterAgentsAndExploreWithPostgres(t *testing.T) {
 		t.Fatalf("expected /agents page token to advance, got same identifier %s", secondListPage.Items[0].Identifier)
 	}
 
+	invalidListPageSizeRequest := httptest.NewRequest(http.MethodGet, "/agents?pageSize=abc", nil)
+	invalidListPageSizeResponse := httptest.NewRecorder()
+	router.ServeHTTP(invalidListPageSizeResponse, invalidListPageSizeRequest)
+	if invalidListPageSizeResponse.Code != http.StatusBadRequest {
+		t.Fatalf("expected invalid /agents pageSize HTTP 400, got %d: %s", invalidListPageSizeResponse.Code, invalidListPageSizeResponse.Body.String())
+	}
+
+	oversizedListPageRequest := httptest.NewRequest(http.MethodGet, "/agents?pageSize=101", nil)
+	oversizedListPageResponse := httptest.NewRecorder()
+	router.ServeHTTP(oversizedListPageResponse, oversizedListPageRequest)
+	if oversizedListPageResponse.Code != http.StatusBadRequest {
+		t.Fatalf("expected oversized /agents pageSize HTTP 400, got %d: %s", oversizedListPageResponse.Code, oversizedListPageResponse.Body.String())
+	}
+
+	invalidListPageTokenRequest := httptest.NewRequest(http.MethodGet, "/agents?pageToken=not-a-valid-page-token", nil)
+	invalidListPageTokenResponse := httptest.NewRecorder()
+	router.ServeHTTP(invalidListPageTokenResponse, invalidListPageTokenRequest)
+	if invalidListPageTokenResponse.Code != http.StatusBadRequest {
+		t.Fatalf("expected invalid /agents pageToken HTTP 400, got %d: %s", invalidListPageTokenResponse.Code, invalidListPageTokenResponse.Body.String())
+	}
+
+	unsupportedListFilterRequest := httptest.NewRequest(http.MethodGet, "/agents?filter=type%20%3D%20%27application%2Fmcp-server-card%2Bjson%27", nil)
+	unsupportedListFilterResponse := httptest.NewRecorder()
+	router.ServeHTTP(unsupportedListFilterResponse, unsupportedListFilterRequest)
+	if unsupportedListFilterResponse.Code != http.StatusBadRequest {
+		t.Fatalf("expected unsupported /agents filter HTTP 400, got %d: %s", unsupportedListFilterResponse.Code, unsupportedListFilterResponse.Body.String())
+	}
+
+	unsupportedListOrderRequest := httptest.NewRequest(http.MethodGet, "/agents?orderBy=updatedAt%20DESC", nil)
+	unsupportedListOrderResponse := httptest.NewRecorder()
+	router.ServeHTTP(unsupportedListOrderResponse, unsupportedListOrderRequest)
+	if unsupportedListOrderResponse.Code != http.StatusBadRequest {
+		t.Fatalf("expected unsupported /agents orderBy HTTP 400, got %d: %s", unsupportedListOrderResponse.Code, unsupportedListOrderResponse.Body.String())
+	}
+
+	unknownListParameterRequest := httptest.NewRequest(http.MethodGet, "/agents?page=1", nil)
+	unknownListParameterResponse := httptest.NewRecorder()
+	router.ServeHTTP(unknownListParameterResponse, unknownListParameterRequest)
+	if unknownListParameterResponse.Code != http.StatusBadRequest {
+		t.Fatalf("expected unknown /agents query parameter HTTP 400, got %d: %s", unknownListParameterResponse.Code, unknownListParameterResponse.Body.String())
+	}
+
 	exploreBody, _ := json.Marshal(ard.ExploreRequest{
 		ResultType: ard.ExploreResultType{
 			Facets: []ard.ExploreFacetRequest{{Field: "type"}},

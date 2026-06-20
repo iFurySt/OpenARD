@@ -4,6 +4,7 @@
 
 | Date | Area | User Impact | Change Summary |
 | --- | --- | --- | --- |
+| 2026-06-21 | API | Browse requests with invalid pagination or unsupported query options now fail fast instead of being silently normalized or ignored. | Added public `/agents` query validation for `pageSize`, `pageToken`, unsupported `filter` / `orderBy`, and unknown parameters. |
 | 2026-06-21 | API | Explore requests with unsupported root, query, or facet fields now fail fast instead of being partially ignored. | Added schema-aligned JSON decode checks and shared validation for `ExploreRequest` facet aggregation inputs. |
 | 2026-06-21 | API | Search requests with unsupported root or query fields now fail fast instead of being partially ignored. | Added schema-aligned JSON decode checks for `SearchRequest` and `query` objects while preserving dynamic filter keys. |
 | 2026-06-21 | API | Search requests with mistyped federation modes now fail fast instead of silently running as `auto`. | Added shared `SearchRequest` validation for required `query.text` and `federation` enum values, with HTTP integration coverage. |
