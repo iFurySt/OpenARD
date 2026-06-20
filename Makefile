@@ -1,7 +1,7 @@
 PROJECT ?=
 SLUG ?=
 
-.PHONY: init new-history new-plan fmt fmt-check test test-public-go-client test-integration test-e2e test-compose build docker-build
+.PHONY: init new-history new-plan fmt fmt-check test test-public-go-client test-integration test-e2e test-compose build package docker-build
 
 init:
 	@if [ -z "$(PROJECT)" ]; then echo "usage: make init PROJECT=my-project"; exit 1; fi
@@ -40,6 +40,9 @@ build:
 	go build -o bin/ard ./cmd/ard
 	go build -o bin/ardctl ./cmd/ardctl
 	go build -o bin/ard-server ./cmd/ard-server
+
+package:
+	./scripts/package-release.sh
 
 docker-build:
 	docker build -t ard:local .

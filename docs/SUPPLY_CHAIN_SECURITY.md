@@ -11,6 +11,8 @@ The remaining defaults are:
 - Do not commit secrets, tokens, or local private configuration.
 - Commit auditable dependency manifests and lockfiles once the real project stack exists.
 - Pin new GitHub Actions to immutable commit SHAs instead of floating tags.
+- `make package` produces explicit versioned binary archives and SHA-256 checksums under
+  `dist/`.
 
 ## Tooling To Add Later
 
@@ -23,12 +25,14 @@ The remaining defaults are:
 
 - Dependency Review is available for public repositories and private repositories with GitHub Advanced Security.
 - There is no automated dependency audit, SBOM, or provenance output right now.
+- Binary archives are checksummed but not signed or attested yet.
 - Reintroduce supply-chain automation after the project stack is known.
 - OpenSSF Scorecard is intentionally not enabled by default because a new template repository has no real branch protection, release history, or SAST posture to score. Add it back after repository rules are configured.
 
 ## What To Do When The Project Becomes Real
 
 - Add ecosystem-specific lockfiles and keep them committed.
-- Make the build deterministic and produce explicit versioned artifacts.
+- Keep release packaging reproducible enough for CI and produce explicit versioned artifacts.
+- Sign release checksums and add provenance attestations before publishing public tags.
 - Gate production deployment on release artifact provenance verification when possible.
 - Consider verifying attestations in the deployment environment or cluster admission layer.

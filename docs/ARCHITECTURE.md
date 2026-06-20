@@ -20,6 +20,8 @@ Cobra, Gin, GORM, and Postgres.
 - Container distribution: the root `Dockerfile` builds all three binaries and defaults
   to the dedicated `ard-server` runtime entrypoint. `infra/compose.yaml` runs the
   registry with Postgres for local self-hosted trials.
+- Binary distribution: `make package` produces versioned Linux/macOS amd64/arm64
+  archives for `ard`, `ardctl`, and `ard-server`, plus a SHA-256 checksum manifest.
 - Client flow: `ard search` and the public Go client send spec-shaped `SearchRequest`
   bodies to a registry. The registry rejects unknown request/query fields, missing
   `query.text`, and unsupported `federation` values instead of silently normalizing

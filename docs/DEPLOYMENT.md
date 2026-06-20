@@ -14,6 +14,23 @@ make build
 - `bin/ardctl`: client and management CLI.
 - `bin/ard-server`: dedicated registry server.
 
+Build versioned release archives:
+
+```sh
+make package
+```
+
+`make package` writes `dist/ard_<version>_<os>_<arch>.tar.gz` archives for Linux and
+macOS on amd64 and arm64 by default. Each archive contains `ard`, `ardctl`,
+`ard-server`, `README.md`, `LICENSE`, and `VERSION`. The script also writes
+`dist/checksums.txt` with SHA-256 hashes for every archive.
+
+Useful overrides:
+
+```sh
+VERSION=v0.1.0 PLATFORMS='linux/amd64 darwin/arm64' make package
+```
+
 Run the server against Postgres:
 
 ```sh
@@ -77,5 +94,5 @@ then removes the compose stack and volume.
   reviewed configuration.
 - Rotate role token files with an atomic write-and-rename so the server sees complete
   JSON. Invalid updates are ignored and the last valid token set remains active.
-- The built image is a local distribution artifact today. Release publishing and signed
-  provenance are still future supply-chain work.
+- Binary release archives include SHA-256 checksums. Release publishing, SBOM output, and
+  signed provenance are still future supply-chain work.

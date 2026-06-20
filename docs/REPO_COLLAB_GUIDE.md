@@ -42,9 +42,11 @@ This document defines the default collaboration model for an agent-first reposit
   outside the default CI path because it depends on external network availability.
 - `make test-compose` builds the registry image and verifies the Docker Compose
   deployment path against Postgres.
-- Release publishing is not automated yet. The local container and binary artifacts are
-  documented in `docs/DEPLOYMENT.md`; when publishing automation is added, document the
-  release artifacts and operational assumptions in the same change.
+- `make package` builds versioned Linux/macOS binary archives for all entrypoints and
+  writes SHA-256 checksums under `dist/`; CI runs it as a release packaging gate.
+- Release publishing is not automated yet. Local container, binary archive, and checksum
+  workflows are documented in `docs/DEPLOYMENT.md`; when publishing automation is added,
+  document the release artifacts and operational assumptions in the same change.
 
 ## Configuration Hygiene
 
