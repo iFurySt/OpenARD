@@ -91,6 +91,10 @@ results, _ := registry.Search(ctx, ard.SearchRequest{
 	Query: ard.SearchQuery{Text: "weather"},
 })
 _ = results
+
+admin, _ := client.New("https://registry.example.com", client.WithAdminToken(adminToken))
+entries, _ := admin.AdminList(ctx, client.AdminListOptions{Kind: "mcp"})
+_ = entries
 ```
 
 Import paths:
@@ -105,7 +109,7 @@ Gin-based registry server, GORM/Postgres persistence, catalog import, well-known
 catalog crawl and publication, MCP/A2A/Skill/OpenAPI artifact onboarding, catalog
 verification, ARD search, browse, and explore facets, a public Go SDK, catalog export,
 field-filtered local listing, remote public browsing, entry removal, and token-protected admin
-API routes with an `ardctl admin` client. Admin flows can disable, reactivate, filter
+API routes with `ardctl admin` and Go SDK clients. Admin flows can disable, reactivate, filter
 entries, apply ingestion policy, review pending entries with decision reasons, and
 inspect mutation audit events without exposing inactive resources through public
 discovery. Audit events are hash-chained and can be verified through
@@ -123,7 +127,8 @@ It builds three entry points: `ard` for the combined toolkit, `ardctl` for CLI/c
 operations, and `ard-server` for the registry server. CI runs formatting checks, tests,
 public Go client import checks, builds, and Postgres integration tests.
 `make test-e2e` runs the real artifact onboarding flow with live MCP, Skill, OpenAPI,
-policy-gate examples, and a local upstream registry for auto federation.
+policy-gate examples, a local upstream registry for auto federation, and an external
+Go admin SDK check against the live registry.
 `make test-compose` builds the container image and verifies a compose-backed registry
 against Postgres.
 

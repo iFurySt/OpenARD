@@ -1,4 +1,4 @@
-// Package client provides a small HTTP client for public ARD registry surfaces.
+// Package client provides a small HTTP client for ARD registry surfaces.
 package client
 
 import (
@@ -47,6 +47,15 @@ func WithHeader(name string, value string) Option {
 	return func(client *Client) {
 		if strings.TrimSpace(name) != "" && value != "" {
 			client.headers.Set(name, value)
+		}
+	}
+}
+
+func WithAdminToken(token string) Option {
+	return func(client *Client) {
+		token = strings.TrimSpace(token)
+		if token != "" {
+			client.headers.Set("Authorization", "Bearer "+token)
 		}
 	}
 }

@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
 pick_port() {
   python3 - <<'PY'
 import socket
@@ -27,6 +29,7 @@ skill_file="$(mktemp /tmp/ard-e2e-skill-XXXXXX.md)"
 openapi_file="$(mktemp /tmp/ard-e2e-openapi-XXXXXX.json)"
 fixture_server_file="$(mktemp /tmp/ard-e2e-fixture-XXXXXX.py)"
 upstream_server_file="$(mktemp /tmp/ard-e2e-upstream-XXXXXX.py)"
+admin_sdk_workdir="$(mktemp -d /tmp/ard-e2e-admin-sdk-XXXXXX)"
 conformance_bin="${ARD_CONFORMANCE_BIN:-../ard-spec/conformance/bin/conformance-test}"
 
 mcp_card_url="https://raw.githubusercontent.com/clauxel/agentmemory-mcp/main/server.json"
@@ -49,6 +52,7 @@ cleanup() {
   fi
   docker rm -f "${postgres_container}" >/dev/null 2>&1 || true
   rm -f "${export_file}" "${referral_catalog_file}" "${policy_file}" "${tokens_file}" "${mcp_card_file}" "${skill_file}" "${openapi_file}" "${fixture_server_file}" "${upstream_server_file}"
+  rm -rf "${admin_sdk_workdir}"
 }
 trap cleanup EXIT
 
@@ -325,6 +329,98 @@ if bin/ardctl admin remove urn:air:raw.githubusercontent.com:server:agentmemory-
   exit 1
 fi
 grep -q "PERMISSION_DENIED" /tmp/ard-e2e-rbac-deny.log
+
+(
+  cd "${admin_sdk_workdir}"
+  go mod init example.com/ard-e2e-admin-sdk >/dev/null
+  go mod edit -require github.com/ifuryst/ard@v0.0.0
+  go mod edit -replace "github.com/ifuryst/ard=${repo_root}"
+  cat >admin_sdk_test.go <<'GO'
+package arde2eadminsdk
+
+import (
+	"context"
+	"os"
+	"testing"
+
+	"github.com/ifuryst/ard/pkg/ard"
+	"github.com/ifuryst/ard/pkg/client"
+)
+
+func TestAdminGoClientAgainstRealRegistry(t *testing.T) {
+	registryURL := os.Getenv("ARD_E2E_REGISTRY_URL")
+	adminToken := os.Getenv("ARD_E2E_ADMIN_TOKEN")
+	if registryURL == "" || adminToken == "" {
+		t.Fatal("ARD_E2E_REGISTRY_URL and ARD_E2E_ADMIN_TOKEN are required")
+	}
+	registry, err := client.New(registryURL, client.WithAdminToken(adminToken))
+	if err != nil {
+		t.Fatalf("new client: %v", err)
+	}
+	ctx := context.Background()
+
+	list, err := registry.AdminList(ctx, client.AdminListOptions{Kind: "mcp", PageSize: 10})
+	if err != nil {
+		t.Fatalf("admin list: %v", err)
+	}
+	if len(list.Items) < 2 {
+		t.Fatalf("expected imported MCP entries, got %#v", list)
+	}
+
+	exported, err := registry.AdminExportCatalog(ctx)
+	if err != nil {
+		t.Fatalf("admin export catalog: %v", err)
+	}
+	if len(exported.Entries) < 4 {
+		t.Fatalf("expected imported catalog entries, got %#v", exported)
+	}
+
+	entry := ard.CatalogEntry{
+		Identifier:  "urn:air:sdk.example.com:server:e2e-admin-sdk",
+		DisplayName: "E2E Admin SDK MCP",
+		Type:        ard.TypeMCPServerCard,
+		URL:         "https://sdk.example.com/mcp.json",
+		Description: "Temporary entry managed by the external Go admin SDK E2E check.",
+	}
+	upserted, err := registry.AdminUpsertEntry(ctx, entry)
+	if err != nil {
+		t.Fatalf("admin upsert entry: %v", err)
+	}
+	if upserted.Identifier != entry.Identifier {
+		t.Fatalf("unexpected upserted entry: %#v", upserted)
+	}
+
+	status, err := registry.AdminSetStatus(ctx, entry.Identifier, "disabled")
+	if err != nil {
+		t.Fatalf("admin set status: %v", err)
+	}
+	if status.Status != "disabled" {
+		t.Fatalf("unexpected status response: %#v", status)
+	}
+
+	audit, err := registry.AdminAudit(ctx, client.AdminAuditOptions{PageSize: 5})
+	if err != nil {
+		t.Fatalf("admin audit: %v", err)
+	}
+	if len(audit.Items) == 0 {
+		t.Fatalf("expected audit events, got %#v", audit)
+	}
+
+	verification, err := registry.AdminVerifyAudit(ctx)
+	if err != nil {
+		t.Fatalf("admin verify audit: %v", err)
+	}
+	if !verification.Valid {
+		t.Fatalf("expected valid audit chain, got %#v", verification)
+	}
+
+	if err := registry.AdminDeleteEntry(ctx, entry.Identifier); err != nil {
+		t.Fatalf("admin delete entry: %v", err)
+	}
+}
+GO
+  ARD_E2E_REGISTRY_URL="${registry_url}" ARD_E2E_ADMIN_TOKEN="${admin_token}" go test ./...
+)
 
 bin/ardctl admin export catalog --registry-url "${registry_url}" --admin-token "${admin_token}" -o "${export_file}"
 grep -q "Agentmemory MCP" "${export_file}"

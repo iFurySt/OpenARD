@@ -14,7 +14,8 @@ Cobra, Gin, GORM, and Postgres.
   management operations without server startup, and `cmd/ard-server` ships a dedicated
   registry server binary.
 - Public Go SDK: `pkg/ard` exposes spec-shaped ARD model aliases and validation helpers,
-  while `pkg/client` provides an embeddable HTTP client for public registry surfaces.
+  while `pkg/client` provides an embeddable HTTP client for public discovery and
+  token-protected admin registry surfaces.
 - Container distribution: the root `Dockerfile` builds all three binaries and defaults
   to the dedicated `ard-server` runtime entrypoint. `infra/compose.yaml` runs the
   registry with Postgres for local self-hosted trials.
@@ -48,8 +49,9 @@ Cobra, Gin, GORM, and Postgres.
   deterministic inventory workflows.
 - Admin API: when `ARD_ADMIN_TOKEN`, `--admin-token`, `ARD_ADMIN_TOKENS_FILE`, or
   `--admin-tokens-file` is configured, Gin exposes protected `/admin/*` routes for entry
-  listing, entry upsert, catalog upsert, catalog export, lifecycle status changes, audit
-  event listing, and deletion. `ardctl admin` is the first client for those remote routes.
+  listing, entry upsert, catalog upsert, catalog export, lifecycle status changes, review
+  decisions, audit event listing, audit hash-chain verification, and deletion. `ardctl
+  admin` and `pkg/client` can call those remote routes.
 - Admin authorization: a single legacy admin token still grants full access. Optional
   role-scoped token files split admin access into `reader`, `publisher`, `reviewer`,
   `operator`, and `admin` permissions and are reloaded when the file changes.
@@ -105,7 +107,8 @@ Cobra, Gin, GORM, and Postgres.
 - `internal/store/`: GORM/Postgres persistence and search.
 - `internal/config/`: environment and CLI config helpers.
 - `pkg/ard/`: public ARD model aliases and validation helpers for Go consumers.
-- `pkg/client/`: public HTTP client for unauthenticated registry discovery surfaces.
+- `pkg/client/`: public HTTP client for unauthenticated registry discovery surfaces and
+  token-protected admin management routes.
 - `packages/`: reserved for future non-Go SDK packages or generated artifacts.
 - `apps/registry/`: reserved for a separate deployable server only if the single binary
   becomes limiting.
@@ -214,8 +217,9 @@ boundary without changing HTTP contracts.
   is configured. Implemented, including entry lifecycle status management and paginated
   audit event listing plus audit hash-chain verification.
 - Go SDK equivalents: `pkg/client` implements public `Search`, `Browse`, `Explore`,
-  `Catalog`, and `Health` methods with typed responses from `pkg/ard`. Admin APIs are
-  intentionally not exposed as a public SDK contract yet.
+  `Catalog`, and `Health` methods with typed responses from `pkg/ard`. It also exposes
+  token-protected admin methods for entry list/upsert/delete, catalog import/export,
+  review decisions, lifecycle status, audit listing, and audit hash-chain verification.
 - CLI equivalents: `serve`, `add catalog`, `add mcp`, `add a2a`, `add skill`,
   `add openapi`, `crawl`, `admin`, `browse`, `export catalog`, `list`, `remove`,
   `verify catalog`, and `search` are implemented. `ardctl browse` calls public

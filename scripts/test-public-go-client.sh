@@ -34,6 +34,18 @@ func TestPublicGoClientImportsFromExternalModule(t *testing.T) {
 			_, _ = response.Write([]byte(`{"results":[{"identifier":"urn:air:example.com:server:weather","displayName":"Weather","type":"application/mcp-server-card+json","url":"https://example.com/mcp.json","score":100,"source":"local"}]}`))
 		case "/agents":
 			_, _ = response.Write([]byte(`{"items":[{"identifier":"urn:air:example.com:server:weather","displayName":"Weather","type":"application/mcp-server-card+json","url":"https://example.com/mcp.json"}],"total":1}`))
+		case "/admin/entries":
+			if request.Header.Get("Authorization") != "Bearer token" {
+				http.Error(response, "missing admin token", http.StatusUnauthorized)
+				return
+			}
+			_, _ = response.Write([]byte(`{"items":[{"identifier":"urn:air:example.com:server:weather","displayName":"Weather","type":"application/mcp-server-card+json","url":"https://example.com/mcp.json","metadata":{"ard.status":"active"}}],"total":1}`))
+		case "/admin/audit/verify":
+			if request.Header.Get("Authorization") != "Bearer token" {
+				http.Error(response, "missing admin token", http.StatusUnauthorized)
+				return
+			}
+			_, _ = response.Write([]byte(`{"valid":true,"total":1,"lastHash":"abc"}`))
 		default:
 			http.NotFound(response, request)
 		}
@@ -59,6 +71,24 @@ func TestPublicGoClientImportsFromExternalModule(t *testing.T) {
 	}
 	if len(list.Items) != 1 {
 		t.Fatalf("unexpected browse response: %#v", list)
+	}
+	adminRegistry, err := client.New(server.URL, client.WithAdminToken("token"))
+	if err != nil {
+		t.Fatalf("new admin client: %v", err)
+	}
+	adminList, err := adminRegistry.AdminList(context.Background(), client.AdminListOptions{Kind: "mcp", PageSize: 1})
+	if err != nil {
+		t.Fatalf("admin list: %v", err)
+	}
+	if len(adminList.Items) != 1 {
+		t.Fatalf("unexpected admin list response: %#v", adminList)
+	}
+	verification, err := adminRegistry.AdminVerifyAudit(context.Background())
+	if err != nil {
+		t.Fatalf("admin verify audit: %v", err)
+	}
+	if !verification.Valid {
+		t.Fatalf("unexpected audit verification: %#v", verification)
 	}
 }
 GO
