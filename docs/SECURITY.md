@@ -13,6 +13,14 @@ Use this document to make secure defaults explicit and legible to agents.
 - Run admin routes behind TLS and a trusted ingress in shared environments. The built-in
   bearer token is an MVP management guard, not a full enterprise identity layer.
 
+## Lifecycle Governance
+
+- Entries are `active` by default when imported.
+- Admin users can set entries to `pending`, `disabled`, or back to `active`.
+- Public search, browse, explore, and catalog export only expose `active` entries.
+- Lifecycle status is implementation metadata and should not be treated as a substitute
+  for role-based authorization, policy decisions, or signed trust verification.
+
 ## Current Gaps
 
 - No role-based authorization yet.

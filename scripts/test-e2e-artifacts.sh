@@ -110,6 +110,21 @@ bin/ardctl search memory --registry-url "${registry_url}" --kind mcp --json | gr
 bin/ardctl search browser --registry-url "${registry_url}" --kind skill --json | grep -q "open-browser-use"
 bin/ardctl search hello --registry-url "${registry_url}" --kind a2a --json | grep -q "Hello World Agent"
 
+bin/ardctl admin status urn:air:github.com:skill:open-browser-use disabled \
+  --registry-url "${registry_url}" \
+  --admin-token "${admin_token}" | grep -q "remote set urn:air:github.com:skill:open-browser-use status to disabled"
+bin/ardctl admin list --status disabled --registry-url "${registry_url}" --admin-token "${admin_token}" --json >/tmp/ard-e2e-disabled.json
+grep -q "open-browser-use" /tmp/ard-e2e-disabled.json
+grep -q '"ard.status":"disabled"' /tmp/ard-e2e-disabled.json
+if bin/ardctl search browser --registry-url "${registry_url}" --kind skill --json | grep -q "open-browser-use"; then
+  echo "disabled skill entry still searchable" >&2
+  exit 1
+fi
+bin/ardctl admin status urn:air:github.com:skill:open-browser-use active \
+  --registry-url "${registry_url}" \
+  --admin-token "${admin_token}" | grep -q "remote set urn:air:github.com:skill:open-browser-use status to active"
+bin/ardctl search browser --registry-url "${registry_url}" --kind skill --json | grep -q "open-browser-use"
+
 bin/ardctl admin remove urn:air:raw.githubusercontent.com:server:agentmemory-mcp \
   --registry-url "${registry_url}" \
   --admin-token "${admin_token}" \

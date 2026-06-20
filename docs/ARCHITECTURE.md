@@ -22,7 +22,11 @@ Cobra, Gin, GORM, and Postgres.
   persisted catalog entries.
 - Admin API: when `ARD_ADMIN_TOKEN` or `--admin-token` is configured, Gin exposes
   protected `/admin/*` routes for entry listing, entry upsert, catalog upsert, catalog
-  export, and deletion. `ardctl admin` is the first client for those remote routes.
+  export, lifecycle status changes, and deletion. `ardctl admin` is the first client for
+  those remote routes.
+- Lifecycle governance: persisted entries have an implementation-owned lifecycle status
+  of `active`, `pending`, or `disabled`. Public discovery, search, explore, and catalog
+  export only expose `active` entries; admin list can include and filter all statuses.
 - Artifact onboarding: `ard add mcp`, `ard add a2a`, and `ard add skill` translate real
   MCP server cards, A2A agent cards, and Skill markdown files into ARD catalog entries.
 - Verification engine: initial schema-level checks cover `urn:air:`, required fields,
@@ -102,6 +106,8 @@ boundary without changing HTTP contracts.
   emitted in plain text.
 - Admin API routes must remain disabled by default and require `Authorization: Bearer`
   when enabled.
+- Inactive lifecycle states are implementation metadata, not ARD catalog schema fields.
+  Do not export disabled or pending entries through public catalog/search surfaces.
 - Specification behavior should be derived from `ards-project/ard-spec`, especially
   `spec/ard.md`, `spec/schemas/`, ADRs, and `conformance/`.
 
@@ -114,10 +120,11 @@ boundary without changing HTTP contracts.
 - `GET /agents`: optional deterministic browse endpoint; implemented for basic listing.
 - `GET /health`: deployment health. Implemented.
 - `/admin/*`: implementation-specific management routes; disabled unless an admin token
-  is configured. Implemented.
+  is configured. Implemented, including entry lifecycle status management.
 - CLI equivalents: `serve`, `add catalog`, `add mcp`, `add a2a`, `add skill`, `crawl`,
   `admin`, `export catalog`, `list`, `remove`, `verify catalog`, and `search` are
-  implemented. `ard-server` runs the same server without exposing management subcommands.
+  implemented. `ardctl admin status` manages remote entry lifecycle state. `ard-server`
+  runs the same server without exposing management subcommands.
 
 ## Specification Alignment
 
@@ -144,11 +151,11 @@ third-party or generated directory and record the source commit.
 
 ## Open Decisions
 
-- Whether to add an embedded non-Postgres development mode.
 - Ranking strategy for the first release.
 - Trust manifest verification depth for MVP.
 - Release packaging details for the combined `ard`, CLI-only `ardctl`, and server-only
   `ard-server` binaries.
+- Whether to add an embedded non-Postgres development mode.
 - Whether to vendor selected upstream spec artifacts, use a git submodule, or fetch pinned
   artifacts during development.
 

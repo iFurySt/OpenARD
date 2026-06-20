@@ -33,6 +33,7 @@ ardctl remove urn:air:example.com:server:weather --yes
 ardctl export catalog -o ai-catalog.json
 ardctl admin list --registry-url https://registry.example.com --admin-token "$ARD_ADMIN_TOKEN"
 ardctl admin add catalog ./ai-catalog.json --registry-url https://registry.example.com
+ardctl admin status urn:air:example.com:server:weather disabled --registry-url https://registry.example.com
 ard search "query observability logs" --kind mcp
 ard verify catalog https://example.com/.well-known/ai-catalog.json
 ```
@@ -68,9 +69,11 @@ This repository is in early implementation. Current milestones include a Go CLI,
 Gin-based registry server, GORM/Postgres persistence, catalog import, well-known catalog
 crawl, MCP/A2A/Skill artifact onboarding, catalog verification, ARD search, browse, and
 explore facets, catalog export, local listing, entry removal, and token-protected admin
-API routes with an `ardctl admin` client. It builds three entry points: `ard` for the
-combined toolkit, `ardctl` for CLI/client operations, and `ard-server` for the registry
-server. CI runs formatting checks, tests, builds, and Postgres integration tests.
+API routes with an `ardctl admin` client. Admin flows can disable, reactivate, and filter
+entries without exposing inactive resources through public discovery. It builds three
+entry points: `ard` for the combined toolkit, `ardctl` for CLI/client operations, and
+`ard-server` for the registry server. CI runs formatting checks, tests, builds, and
+Postgres integration tests.
 `make test-e2e` runs the real artifact onboarding flow with live MCP and Skill examples.
 
 Implementation should track the upstream

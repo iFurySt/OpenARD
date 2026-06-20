@@ -19,6 +19,12 @@ type Store struct {
 	db *gorm.DB
 }
 
+const (
+	LifecycleStatusActive   = "active"
+	LifecycleStatusPending  = "pending"
+	LifecycleStatusDisabled = "disabled"
+)
+
 type CatalogEntryRecord struct {
 	Identifier            string         `gorm:"primaryKey;size:512"`
 	DisplayName           string         `gorm:"not null"`
@@ -34,6 +40,7 @@ type CatalogEntryRecord struct {
 	Metadata              datatypes.JSON `gorm:"type:jsonb"`
 	TrustManifest         datatypes.JSON `gorm:"type:jsonb"`
 	Source                string         `gorm:"not null"`
+	LifecycleStatus       string         `gorm:"not null;default:active;index"`
 	SearchText            string         `gorm:"type:text;index"`
 	CreatedAt             time.Time
 	UpdatedAt             time.Time
@@ -48,8 +55,11 @@ type SearchOptions struct {
 }
 
 type ListOptions struct {
-	Limit int
-	Type  string
+	Limit                    int
+	Type                     string
+	Status                   string
+	IncludeInactive          bool
+	IncludeLifecycleMetadata bool
 }
 
 func Open(databaseURL string) (*Store, error) {
@@ -82,8 +92,24 @@ func (store *Store) UpsertCatalog(ctx context.Context, catalog ard.Catalog, sour
 		records = append(records, record)
 	}
 	return store.db.WithContext(ctx).Clauses(clause.OnConflict{
-		Columns:   []clause.Column{{Name: "identifier"}},
-		UpdateAll: true,
+		Columns: []clause.Column{{Name: "identifier"}},
+		DoUpdates: clause.AssignmentColumns([]string{
+			"display_name",
+			"type",
+			"url",
+			"data",
+			"description",
+			"tags",
+			"capabilities",
+			"representative_queries",
+			"version",
+			"updated_at_value",
+			"metadata",
+			"trust_manifest",
+			"source",
+			"search_text",
+			"updated_at",
+		}),
 	}).Create(&records).Error
 }
 
@@ -129,6 +155,11 @@ func (store *Store) ListEntries(ctx context.Context, options ListOptions) ([]ard
 		if options.Type != "" {
 			query = query.Where("type = ?", options.Type)
 		}
+		if options.Status != "" {
+			query = query.Where("lifecycle_status = ?", options.Status)
+		} else if !options.IncludeInactive {
+			query = query.Where("lifecycle_status = ?", LifecycleStatusActive)
+		}
 		return query
 	}
 	var total int64
@@ -141,13 +172,27 @@ func (store *Store) ListEntries(ctx context.Context, options ListOptions) ([]ard
 	}
 	entries := make([]ard.CatalogEntry, 0, len(records))
 	for _, record := range records {
-		entry, err := record.ToCatalogEntry()
+		entry, err := record.toCatalogEntry(options.IncludeLifecycleMetadata)
 		if err != nil {
 			return nil, 0, err
 		}
 		entries = append(entries, entry)
 	}
 	return entries, total, nil
+}
+
+func (store *Store) SetEntryStatus(ctx context.Context, identifier string, status string) (bool, error) {
+	normalized, err := NormalizeLifecycleStatus(status)
+	if err != nil {
+		return false, err
+	}
+	result := store.db.WithContext(ctx).Model(&CatalogEntryRecord{}).
+		Where("identifier = ?", identifier).
+		Update("lifecycle_status", normalized)
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected > 0, nil
 }
 
 func (store *Store) DeleteEntry(ctx context.Context, identifier string) (bool, error) {
@@ -160,7 +205,10 @@ func (store *Store) DeleteEntry(ctx context.Context, identifier string) (bool, e
 
 func (store *Store) ExportCatalog(ctx context.Context, host *ard.HostInfo) (ard.Catalog, error) {
 	var records []CatalogEntryRecord
-	if err := store.db.WithContext(ctx).Order("display_name ASC").Find(&records).Error; err != nil {
+	if err := store.db.WithContext(ctx).
+		Where("lifecycle_status = ?", LifecycleStatusActive).
+		Order("display_name ASC").
+		Find(&records).Error; err != nil {
 		return ard.Catalog{}, err
 	}
 	entries := make([]ard.CatalogEntry, 0, len(records))
@@ -210,12 +258,16 @@ func (store *Store) Explore(ctx context.Context, request ard.ExploreRequest) (ar
 
 func (store *Store) Count(ctx context.Context) (int64, error) {
 	var count int64
-	err := store.db.WithContext(ctx).Model(&CatalogEntryRecord{}).Count(&count).Error
+	err := store.db.WithContext(ctx).Model(&CatalogEntryRecord{}).
+		Where("lifecycle_status = ?", LifecycleStatusActive).
+		Count(&count).Error
 	return count, err
 }
 
 func (store *Store) matchingRecords(ctx context.Context, searchQuery ard.SearchQuery, source string, limit int) ([]CatalogEntryRecord, error) {
-	query := store.db.WithContext(ctx).Model(&CatalogEntryRecord{}).Order("display_name ASC")
+	query := store.db.WithContext(ctx).Model(&CatalogEntryRecord{}).
+		Where("lifecycle_status = ?", LifecycleStatusActive).
+		Order("display_name ASC")
 	if source != "" {
 		query = query.Where("source = ?", source)
 	}
@@ -260,11 +312,16 @@ func recordFromEntry(entry ard.CatalogEntry, source string) (CatalogEntryRecord,
 		Metadata:              jsonMap(entry.Metadata),
 		TrustManifest:         jsonMap(entry.TrustManifest),
 		Source:                source,
+		LifecycleStatus:       LifecycleStatusActive,
 		SearchText:            searchText(entry),
 	}, nil
 }
 
 func (record CatalogEntryRecord) ToCatalogEntry() (ard.CatalogEntry, error) {
+	return record.toCatalogEntry(false)
+}
+
+func (record CatalogEntryRecord) toCatalogEntry(includeLifecycleMetadata bool) (ard.CatalogEntry, error) {
 	entry := ard.CatalogEntry{
 		Identifier:  record.Identifier,
 		DisplayName: record.DisplayName,
@@ -294,7 +351,31 @@ func (record CatalogEntryRecord) ToCatalogEntry() (ard.CatalogEntry, error) {
 	if err := unmarshalJSON(record.TrustManifest, &entry.TrustManifest); err != nil {
 		return ard.CatalogEntry{}, err
 	}
+	if includeLifecycleMetadata {
+		if entry.Metadata == nil {
+			entry.Metadata = map[string]any{}
+		}
+		entry.Metadata["ard.status"] = record.NormalizedLifecycleStatus()
+	}
 	return entry, nil
+}
+
+func (record CatalogEntryRecord) NormalizedLifecycleStatus() string {
+	status, err := NormalizeLifecycleStatus(record.LifecycleStatus)
+	if err != nil {
+		return LifecycleStatusActive
+	}
+	return status
+}
+
+func NormalizeLifecycleStatus(status string) (string, error) {
+	normalized := strings.ToLower(strings.TrimSpace(status))
+	switch normalized {
+	case LifecycleStatusActive, LifecycleStatusPending, LifecycleStatusDisabled:
+		return normalized, nil
+	default:
+		return "", fmt.Errorf("status must be one of: %s, %s, %s", LifecycleStatusActive, LifecycleStatusPending, LifecycleStatusDisabled)
+	}
 }
 
 func jsonSlice(values []string) datatypes.JSON {

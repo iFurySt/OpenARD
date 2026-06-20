@@ -220,6 +220,84 @@ func TestRouterAdminAPIWithPostgres(t *testing.T) {
 		t.Fatalf("expected admin entry in list, got %#v", list)
 	}
 
+	statusBody, _ := json.Marshal(map[string]string{"status": "disabled"})
+	statusRequest := httptest.NewRequest(
+		http.MethodPatch,
+		"/admin/entries/urn:air:example.com:server:admin-weather/status",
+		bytes.NewReader(statusBody),
+	)
+	statusRequest.Header.Set("Authorization", "Bearer test-token")
+	statusRequest.Header.Set("Content-Type", "application/json")
+	statusResponse := httptest.NewRecorder()
+	router.ServeHTTP(statusResponse, statusRequest)
+	if statusResponse.Code != http.StatusOK {
+		t.Fatalf("expected status HTTP 200, got %d: %s", statusResponse.Code, statusResponse.Body.String())
+	}
+
+	publicSearchBody, _ := json.Marshal(ard.SearchRequest{
+		Query: ard.SearchQuery{
+			Text: "admin forecast",
+			Filter: ard.Filter{
+				"type": []string{ard.TypeMCPServerCard},
+			},
+		},
+		PageSize: 10,
+	})
+	publicSearchRequest := httptest.NewRequest(http.MethodPost, "/search", bytes.NewReader(publicSearchBody))
+	publicSearchRequest.Header.Set("Content-Type", "application/json")
+	publicSearchResponse := httptest.NewRecorder()
+	router.ServeHTTP(publicSearchResponse, publicSearchRequest)
+	if publicSearchResponse.Code != http.StatusOK {
+		t.Fatalf("expected public search HTTP 200, got %d: %s", publicSearchResponse.Code, publicSearchResponse.Body.String())
+	}
+	var publicSearch ard.SearchResponse
+	if err := json.Unmarshal(publicSearchResponse.Body.Bytes(), &publicSearch); err != nil {
+		t.Fatalf("decode public search: %v", err)
+	}
+	for _, result := range publicSearch.Results {
+		if result.Identifier == "urn:air:example.com:server:admin-weather" {
+			t.Fatalf("disabled entry should not appear in public search: %#v", result)
+		}
+	}
+
+	disabledListRequest := httptest.NewRequest(http.MethodGet, "/admin/entries?status=disabled", nil)
+	disabledListRequest.Header.Set("Authorization", "Bearer test-token")
+	disabledListResponse := httptest.NewRecorder()
+	router.ServeHTTP(disabledListResponse, disabledListRequest)
+	if disabledListResponse.Code != http.StatusOK {
+		t.Fatalf("expected disabled list HTTP 200, got %d: %s", disabledListResponse.Code, disabledListResponse.Body.String())
+	}
+	var disabledList ard.ListResponse
+	if err := json.Unmarshal(disabledListResponse.Body.Bytes(), &disabledList); err != nil {
+		t.Fatalf("decode disabled list: %v", err)
+	}
+	foundDisabledAdmin := false
+	for _, entry := range disabledList.Items {
+		if entry.Identifier == "urn:air:example.com:server:admin-weather" {
+			foundDisabledAdmin = true
+			if entry.Metadata["ard.status"] != "disabled" {
+				t.Fatalf("expected disabled lifecycle metadata, got %#v", entry.Metadata)
+			}
+		}
+	}
+	if !foundDisabledAdmin {
+		t.Fatalf("expected disabled lifecycle metadata, got %#v", disabledList)
+	}
+
+	statusBody, _ = json.Marshal(map[string]string{"status": "active"})
+	statusRequest = httptest.NewRequest(
+		http.MethodPatch,
+		"/admin/entries/urn:air:example.com:server:admin-weather/status",
+		bytes.NewReader(statusBody),
+	)
+	statusRequest.Header.Set("Authorization", "Bearer test-token")
+	statusRequest.Header.Set("Content-Type", "application/json")
+	statusResponse = httptest.NewRecorder()
+	router.ServeHTTP(statusResponse, statusRequest)
+	if statusResponse.Code != http.StatusOK {
+		t.Fatalf("expected status reactivate HTTP 200, got %d: %s", statusResponse.Code, statusResponse.Body.String())
+	}
+
 	exportRequest := httptest.NewRequest(http.MethodGet, "/admin/catalog", nil)
 	exportRequest.Header.Set("Authorization", "Bearer test-token")
 	exportResponse := httptest.NewRecorder()

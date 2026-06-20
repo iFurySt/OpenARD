@@ -36,11 +36,13 @@ func newAdminCommand() *cobra.Command {
 	command.AddCommand(newAdminAddCommand(&options))
 	command.AddCommand(newAdminExportCommand(&options))
 	command.AddCommand(newAdminRemoveCommand(&options))
+	command.AddCommand(newAdminStatusCommand(&options))
 	return command
 }
 
 func newAdminListCommand(options *adminOptions) *cobra.Command {
 	var kind string
+	var status string
 	var limit int
 	var jsonOutput bool
 	command := &cobra.Command{
@@ -50,6 +52,9 @@ func newAdminListCommand(options *adminOptions) *cobra.Command {
 			query := url.Values{}
 			if kind != "" {
 				query.Set("kind", kind)
+			}
+			if status != "" {
+				query.Set("status", status)
 			}
 			if limit > 0 {
 				query.Set("pageSize", fmt.Sprint(limit))
@@ -67,12 +72,20 @@ func newAdminListCommand(options *adminOptions) *cobra.Command {
 				return err
 			}
 			for _, entry := range response.Items {
-				fmt.Fprintf(cmd.OutOrStdout(), "%-52s  %-40s  %s\n", entry.Identifier, entry.Type, entry.DisplayName)
+				fmt.Fprintf(
+					cmd.OutOrStdout(),
+					"%-52s  %-8s  %-40s  %s\n",
+					entry.Identifier,
+					entryStatus(entry),
+					entry.Type,
+					entry.DisplayName,
+				)
 			}
 			return nil
 		},
 	}
 	command.Flags().StringVar(&kind, "kind", "", "Filter by result kind: mcp, a2a, skill, catalog, registry")
+	command.Flags().StringVar(&status, "status", "", "Filter by lifecycle status: active, pending, disabled")
 	command.Flags().IntVar(&limit, "limit", 20, "Maximum entries to list")
 	command.Flags().BoolVar(&jsonOutput, "json", false, "Print remote ListResponse JSON")
 	return command
@@ -211,6 +224,47 @@ func newAdminRemoveCommand(options *adminOptions) *cobra.Command {
 	command.Flags().BoolVar(&yes, "yes", false, "Confirm removal")
 	command.Flags().BoolVar(&missingOK, "missing-ok", false, "Treat a missing identifier as success")
 	return command
+}
+
+func newAdminStatusCommand(options *adminOptions) *cobra.Command {
+	command := &cobra.Command{
+		Use:   "status IDENTIFIER STATUS",
+		Short: "Set a remote entry lifecycle status",
+		Args:  cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			identifier := args[0]
+			if err := ard.ValidateIdentifier(identifier); err != nil {
+				return err
+			}
+			status := strings.ToLower(strings.TrimSpace(args[1]))
+			switch status {
+			case "active", "pending", "disabled":
+			default:
+				return fmt.Errorf("status must be one of: active, pending, disabled")
+			}
+			payload, err := json.Marshal(map[string]string{"status": status})
+			if err != nil {
+				return err
+			}
+			if _, err := adminRequest(cmd.Context(), *options, http.MethodPatch, "/admin/entries/"+url.PathEscape(identifier)+"/status", payload); err != nil {
+				return err
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "remote set %s status to %s\n", identifier, status)
+			return nil
+		},
+	}
+	return command
+}
+
+func entryStatus(entry ard.CatalogEntry) string {
+	if entry.Metadata == nil {
+		return ""
+	}
+	status, ok := entry.Metadata["ard.status"].(string)
+	if !ok {
+		return ""
+	}
+	return status
 }
 
 func adminRequest(ctx context.Context, options adminOptions, method string, path string, payload []byte) ([]byte, error) {

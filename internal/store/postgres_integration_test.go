@@ -77,12 +77,78 @@ func TestPostgresImportAndSearch(t *testing.T) {
 		t.Fatalf("expected positive relevance score, got %d", results[0].Score)
 	}
 
+	updated, err := registryStore.SetEntryStatus(ctx, "urn:air:acme.com:server:weather", LifecycleStatusDisabled)
+	if err != nil {
+		t.Fatalf("disable entry: %v", err)
+	}
+	if !updated {
+		t.Fatal("expected weather entry to be disabled")
+	}
+
+	results, err = registryStore.Search(ctx, ard.SearchRequest{
+		Query: ard.SearchQuery{
+			Text: "weather forecast",
+			Filter: ard.Filter{
+				"type": []string{ard.TypeMCPServerCard},
+			},
+		},
+		PageSize: 10,
+	}, "integration-test")
+	if err != nil {
+		t.Fatalf("search after disable: %v", err)
+	}
+	if len(results) != 0 {
+		t.Fatalf("expected disabled entry to be hidden from search, got %d", len(results))
+	}
+
+	disabled, total, err := registryStore.ListEntries(ctx, ListOptions{
+		Limit:                    10,
+		Status:                   LifecycleStatusDisabled,
+		IncludeLifecycleMetadata: true,
+	})
+	if err != nil {
+		t.Fatalf("list disabled entries: %v", err)
+	}
+	if total < 1 || len(disabled) < 1 {
+		t.Fatalf("expected disabled entries, got total=%d len=%d", total, len(disabled))
+	}
+	foundDisabled := false
+	for _, entry := range disabled {
+		if entry.Identifier == "urn:air:acme.com:server:weather" {
+			foundDisabled = true
+			if got := entry.Metadata["ard.status"]; got != LifecycleStatusDisabled {
+				t.Fatalf("unexpected lifecycle metadata: %#v", entry.Metadata)
+			}
+		}
+	}
+	if !foundDisabled {
+		t.Fatalf("expected disabled weather entry in admin list: %#v", disabled)
+	}
+
 	listed, total, err := registryStore.ListEntries(ctx, ListOptions{Limit: 10, Type: ard.TypeMCPServerCard})
 	if err != nil {
 		t.Fatalf("list entries: %v", err)
 	}
+	for _, entry := range listed {
+		if entry.Identifier == "urn:air:acme.com:server:weather" {
+			t.Fatalf("disabled entry should not be listed publicly: %#v", entry)
+		}
+	}
+
+	updated, err = registryStore.SetEntryStatus(ctx, "urn:air:acme.com:server:weather", LifecycleStatusActive)
+	if err != nil {
+		t.Fatalf("reactivate entry: %v", err)
+	}
+	if !updated {
+		t.Fatal("expected weather entry to be reactivated")
+	}
+
+	listed, total, err = registryStore.ListEntries(ctx, ListOptions{Limit: 10, Type: ard.TypeMCPServerCard})
+	if err != nil {
+		t.Fatalf("list entries after reactivation: %v", err)
+	}
 	if total < 1 || len(listed) < 1 {
-		t.Fatalf("expected listed MCP entries, got total=%d len=%d", total, len(listed))
+		t.Fatalf("expected listed active MCP entries, got total=%d len=%d", total, len(listed))
 	}
 	for _, entry := range listed {
 		if entry.Type != ard.TypeMCPServerCard {

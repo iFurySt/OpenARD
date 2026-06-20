@@ -41,6 +41,7 @@ func NewRouterWithOptions(store *store.Store, options Options) *gin.Engine {
 		admin.POST("/entries", server.adminUpsertEntry)
 		admin.POST("/catalogs", server.adminUpsertCatalog)
 		admin.GET("/catalog", server.adminExportCatalog)
+		admin.PATCH("/entries/:identifier/status", server.adminSetEntryStatus)
 		admin.DELETE("/entries/:identifier", server.adminDeleteEntry)
 	}
 	return router
@@ -159,9 +160,24 @@ func (server Server) adminEntries(context *gin.Context) {
 	if mediaType == "" {
 		mediaType = mediaTypeForKind(context.Query("kind"))
 	}
+	status := strings.TrimSpace(context.Query("status"))
+	if status != "" {
+		normalized, err := store.NormalizeLifecycleStatus(status)
+		if err != nil {
+			context.JSON(http.StatusBadRequest, gin.H{
+				"errorCode": "INVALID_ARGUMENT",
+				"message":   err.Error(),
+			})
+			return
+		}
+		status = normalized
+	}
 	entries, total, err := server.store.ListEntries(context.Request.Context(), store.ListOptions{
-		Limit: limit,
-		Type:  mediaType,
+		Limit:                    limit,
+		Type:                     mediaType,
+		Status:                   status,
+		IncludeInactive:          status == "",
+		IncludeLifecycleMetadata: true,
 	})
 	if err != nil {
 		context.JSON(http.StatusInternalServerError, gin.H{
@@ -240,6 +256,54 @@ func (server Server) adminExportCatalog(context *gin.Context) {
 		return
 	}
 	context.JSON(http.StatusOK, catalog)
+}
+
+func (server Server) adminSetEntryStatus(context *gin.Context) {
+	identifier := context.Param("identifier")
+	if err := ard.ValidateIdentifier(identifier); err != nil {
+		context.JSON(http.StatusBadRequest, gin.H{
+			"errorCode": "INVALID_ARGUMENT",
+			"message":   err.Error(),
+		})
+		return
+	}
+	var payload struct {
+		Status string `json:"status"`
+	}
+	if err := context.ShouldBindJSON(&payload); err != nil {
+		context.JSON(http.StatusBadRequest, gin.H{
+			"errorCode": "INVALID_ARGUMENT",
+			"message":   err.Error(),
+		})
+		return
+	}
+	status, err := store.NormalizeLifecycleStatus(payload.Status)
+	if err != nil {
+		context.JSON(http.StatusBadRequest, gin.H{
+			"errorCode": "INVALID_ARGUMENT",
+			"message":   err.Error(),
+		})
+		return
+	}
+	updated, err := server.store.SetEntryStatus(context.Request.Context(), identifier, status)
+	if err != nil {
+		context.JSON(http.StatusInternalServerError, gin.H{
+			"errorCode": "INTERNAL_ERROR",
+			"message":   err.Error(),
+		})
+		return
+	}
+	if !updated {
+		context.JSON(http.StatusNotFound, gin.H{
+			"errorCode": "NOT_FOUND",
+			"message":   "entry not found",
+		})
+		return
+	}
+	context.JSON(http.StatusOK, gin.H{
+		"identifier": identifier,
+		"status":     status,
+	})
 }
 
 func (server Server) adminDeleteEntry(context *gin.Context) {
