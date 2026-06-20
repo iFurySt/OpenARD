@@ -4,6 +4,7 @@
 
 | Date | Area | User Impact | Change Summary |
 | --- | --- | --- | --- |
+| 2026-06-21 | API | Other ARD crawlers can consume a self-hosted registry's active catalog directly from the well-known URL. | Changed `/.well-known/ai-catalog.json` from a registry-only stub to a public catalog containing the registry self entry plus active entries, with pending/disabled entries excluded and E2E/compose coverage. |
 | 2026-06-21 | API | Clients can browse registries by capability, tag, and metadata fields instead of only publisher and type. | Extended shared `/agents`, `ardctl browse`, and `ardctl list` filters with `tags`, `capabilities`, and `metadata.<key>` support backed by Postgres, integration tests, and real E2E coverage. |
 | 2026-06-21 | SDK | Agent platforms can embed ARD discovery without shelling out to `ardctl`. | Added public `pkg/ard` model aliases, `pkg/client` for search/browse/explore/catalog/health, unit tests, external import verification, and a CI gate. |
 | 2026-06-21 | CLI | Clients can browse public registries without admin credentials. | Added `ardctl browse` for public `/agents` with filter, order, pagination, JSON output, unit tests, and E2E coverage. |

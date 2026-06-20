@@ -40,6 +40,9 @@ curl -fsS "${registry_url}/health" >/tmp/ard-compose-health.json
 bin/ardctl admin add catalog ./internal/catalog/testdata/acme-ai-catalog.json \
   --registry-url "${registry_url}" \
   --admin-token "${admin_token}"
+curl -fsS "${registry_url}/.well-known/ai-catalog.json" >/tmp/ard-compose-catalog.json
+grep -q "ARD Registry" /tmp/ard-compose-catalog.json
+grep -q "Weather Data Node" /tmp/ard-compose-catalog.json
 bin/ardctl search weather --registry-url "${registry_url}" --kind mcp --json >/tmp/ard-compose-search.json
 grep -q "Weather Data Node" /tmp/ard-compose-search.json
 

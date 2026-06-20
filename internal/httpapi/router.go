@@ -93,24 +93,47 @@ func (server Server) health(context *gin.Context) {
 
 func (server Server) catalog(context *gin.Context) {
 	baseURL := requestBaseURL(context.Request)
-	context.JSON(http.StatusOK, ard.Catalog{
-		SpecVersion: "1.0",
-		Host: &ard.HostInfo{
-			DisplayName:      "ARD",
-			Identifier:       "did:web:agent.localhost",
-			DocumentationURL: "https://github.com/iFurySt/ard",
-		},
-		Entries: []ard.CatalogEntry{
-			{
-				Identifier:  "urn:air:agent.localhost:registry:ard",
-				DisplayName: "ARD Registry",
-				Type:        ard.TypeAIRegistry,
-				URL:         baseURL,
-				Description: "Self-hosted Agentic Resource Discovery registry.",
-				Tags:        []string{"ard", "registry", "self-hosted"},
-			},
-		},
-	})
+	catalog, err := server.store.ExportCatalog(context.Request.Context(), registryHostInfo())
+	if err != nil {
+		context.JSON(http.StatusInternalServerError, gin.H{
+			"errorCode": "INTERNAL_ERROR",
+			"message":   err.Error(),
+		})
+		return
+	}
+	catalog.Entries = prependRegistryEntry(catalog.Entries, registryCatalogEntry(baseURL))
+	context.JSON(http.StatusOK, catalog)
+}
+
+func registryHostInfo() *ard.HostInfo {
+	return &ard.HostInfo{
+		DisplayName:      "ARD",
+		Identifier:       "did:web:agent.localhost",
+		DocumentationURL: "https://github.com/iFurySt/ard",
+	}
+}
+
+func registryCatalogEntry(baseURL string) ard.CatalogEntry {
+	return ard.CatalogEntry{
+		Identifier:  "urn:air:agent.localhost:registry:ard",
+		DisplayName: "ARD Registry",
+		Type:        ard.TypeAIRegistry,
+		URL:         baseURL,
+		Description: "Self-hosted Agentic Resource Discovery registry.",
+		Tags:        []string{"ard", "registry", "self-hosted"},
+	}
+}
+
+func prependRegistryEntry(entries []ard.CatalogEntry, registry ard.CatalogEntry) []ard.CatalogEntry {
+	for _, entry := range entries {
+		if entry.Identifier == registry.Identifier {
+			return entries
+		}
+	}
+	published := make([]ard.CatalogEntry, 0, len(entries)+1)
+	published = append(published, registry)
+	published = append(published, entries...)
+	return published
 }
 
 func (server Server) search(context *gin.Context) {

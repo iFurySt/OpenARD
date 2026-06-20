@@ -102,9 +102,9 @@ Import paths:
 
 This repository is in early implementation. Current milestones include a Go CLI,
 Gin-based registry server, GORM/Postgres persistence, catalog import, well-known
-catalog crawl, MCP/A2A/Skill/OpenAPI artifact onboarding, catalog verification, ARD
-search, browse, and explore facets, a public Go SDK, catalog export, field-filtered local
-listing, remote public browsing, entry removal, and token-protected admin
+catalog crawl and publication, MCP/A2A/Skill/OpenAPI artifact onboarding, catalog
+verification, ARD search, browse, and explore facets, a public Go SDK, catalog export,
+field-filtered local listing, remote public browsing, entry removal, and token-protected admin
 API routes with an `ardctl admin` client. Admin flows can disable, reactivate, filter
 entries, apply ingestion policy, review pending entries with decision reasons, and
 inspect mutation audit events without exposing inactive resources through public

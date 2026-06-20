@@ -331,6 +331,11 @@ grep -q "Agentmemory MCP" "${export_file}"
 grep -q "open-browser-use" "${export_file}"
 grep -q "Swagger Petstore - OpenAPI 3.0" "${export_file}"
 grep -q "Hello World Agent" "${export_file}"
+curl -fsS "${registry_url}/.well-known/ai-catalog.json" >/tmp/ard-e2e-public-catalog.json
+grep -q "ARD Registry" /tmp/ard-e2e-public-catalog.json
+grep -q "Weather Data Node" /tmp/ard-e2e-public-catalog.json
+grep -q "open-browser-use" /tmp/ard-e2e-public-catalog.json
+bin/ard verify catalog /tmp/ard-e2e-public-catalog.json --json | grep -q '"valid": true'
 bin/ard verify catalog "${export_file}" --json | grep -q '"valid": true'
 bin/ard verify catalog "${export_file}" --source-digests --json >/tmp/ard-e2e-verify-digests.json
 grep -q '"sourceDigestsVerified": 1' /tmp/ard-e2e-verify-digests.json

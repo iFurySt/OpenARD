@@ -197,8 +197,8 @@ boundary without changing HTTP contracts.
 
 ## API Targets
 
-- `GET /.well-known/ai-catalog.json`: advertise this registry and any configured catalog
-  entries. Implemented.
+- `GET /.well-known/ai-catalog.json`: advertises this registry plus active configured
+  catalog entries. Pending and disabled entries are not published. Implemented.
 - `POST /search`: ARD search endpoint with root/query known-field validation plus
   root-level `pageSize`, `pageToken`, and `federation` enum validation. Implemented.
 - `POST /explore`: optional; implemented for local facet aggregation with request,

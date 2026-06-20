@@ -319,6 +319,97 @@ func TestRouterSearchWithPostgres(t *testing.T) {
 	}
 }
 
+func TestRouterWellKnownCatalogPublishesActiveEntries(t *testing.T) {
+	databaseURL := os.Getenv("ARD_TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("set ARD_TEST_DATABASE_URL to run Postgres integration tests")
+	}
+	ctx := context.Background()
+	registryStore, err := store.Open(databaseURL)
+	if err != nil {
+		t.Fatalf("open store: %v", err)
+	}
+	defer registryStore.Close()
+	if err := registryStore.AutoMigrate(); err != nil {
+		t.Fatalf("migrate store: %v", err)
+	}
+	for _, identifier := range []string{
+		"urn:air:catalog.example.com:server:published-weather",
+		"urn:air:catalog.example.com:server:pending-weather",
+	} {
+		if _, err := registryStore.DeleteEntry(ctx, identifier); err != nil {
+			t.Fatalf("clean catalog entry %s: %v", identifier, err)
+		}
+	}
+	if err := registryStore.UpsertCatalog(ctx, ard.Catalog{
+		SpecVersion: "1.0",
+		Entries: []ard.CatalogEntry{
+			{
+				Identifier:  "urn:air:catalog.example.com:server:published-weather",
+				DisplayName: "Published Weather MCP",
+				Type:        ard.TypeMCPServerCard,
+				URL:         "https://catalog.example.com/mcp/weather.json",
+				Description: "Active MCP server that should appear in the public catalog.",
+			},
+		},
+	}, "catalog-endpoint-test"); err != nil {
+		t.Fatalf("upsert active catalog: %v", err)
+	}
+	if err := registryStore.UpsertCatalogWithStatuses(ctx, ard.Catalog{
+		SpecVersion: "1.0",
+		Entries: []ard.CatalogEntry{
+			{
+				Identifier:  "urn:air:catalog.example.com:server:pending-weather",
+				DisplayName: "Pending Weather MCP",
+				Type:        ard.TypeMCPServerCard,
+				URL:         "https://catalog.example.com/mcp/pending-weather.json",
+				Description: "Pending MCP server that must not appear in the public catalog.",
+			},
+		},
+	}, "catalog-endpoint-test", map[string]string{
+		"urn:air:catalog.example.com:server:pending-weather": store.LifecycleStatusPending,
+	}); err != nil {
+		t.Fatalf("upsert pending catalog: %v", err)
+	}
+
+	router := NewRouter(registryStore)
+	request := httptest.NewRequest(http.MethodGet, "http://registry.example.test/.well-known/ai-catalog.json", nil)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("expected catalog HTTP 200, got %d: %s", response.Code, response.Body.String())
+	}
+	var catalog ard.Catalog
+	if err := json.Unmarshal(response.Body.Bytes(), &catalog); err != nil {
+		t.Fatalf("decode catalog response: %v", err)
+	}
+	if err := ard.ValidateCatalog(catalog); err != nil {
+		t.Fatalf("well-known catalog should validate: %v", err)
+	}
+
+	foundRegistry := false
+	foundActive := false
+	for _, entry := range catalog.Entries {
+		switch entry.Identifier {
+		case "urn:air:agent.localhost:registry:ard":
+			foundRegistry = true
+			if entry.URL != "http://registry.example.test" {
+				t.Fatalf("unexpected registry URL: %s", entry.URL)
+			}
+		case "urn:air:catalog.example.com:server:published-weather":
+			foundActive = true
+		case "urn:air:catalog.example.com:server:pending-weather":
+			t.Fatalf("pending entry should not be published: %#v", entry)
+		}
+	}
+	if !foundRegistry {
+		t.Fatal("expected registry self entry in well-known catalog")
+	}
+	if !foundActive {
+		t.Fatalf("expected active entry in well-known catalog: %#v", catalog.Entries)
+	}
+}
+
 func TestRouterAgentsAndExploreWithPostgres(t *testing.T) {
 	databaseURL := os.Getenv("ARD_TEST_DATABASE_URL")
 	if databaseURL == "" {
