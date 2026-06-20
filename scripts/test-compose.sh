@@ -36,3 +36,4 @@ grep -q "Weather Data Node" /tmp/ard-compose-search.json
 
 curl -fsS "${registry_url}/metrics" >/tmp/ard-compose-metrics.txt
 grep -q "ard_http_requests_total" /tmp/ard-compose-metrics.txt
+grep -q "ard_runtime_goroutines" /tmp/ard-compose-metrics.txt

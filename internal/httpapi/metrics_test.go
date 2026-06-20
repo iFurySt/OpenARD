@@ -37,4 +37,13 @@ func TestMetricsEndpointRecordsRequests(t *testing.T) {
 	if !strings.Contains(body, "ard_http_requests_in_flight") {
 		t.Fatalf("expected in-flight gauge in metrics body: %s", body)
 	}
+	if !strings.Contains(body, "# TYPE ard_runtime_goroutines gauge") {
+		t.Fatalf("expected runtime goroutine gauge in metrics body: %s", body)
+	}
+	if !strings.Contains(body, "# TYPE ard_runtime_heap_alloc_bytes gauge") {
+		t.Fatalf("expected runtime heap alloc gauge in metrics body: %s", body)
+	}
+	if !strings.Contains(body, "# TYPE ard_runtime_gc_cycles_total counter") {
+		t.Fatalf("expected runtime GC counter in metrics body: %s", body)
+	}
 }

@@ -3,6 +3,7 @@ package httpapi
 import (
 	"fmt"
 	"net/http"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -91,6 +92,7 @@ func (metrics *metricsCollector) render() string {
 	builder.WriteString("# HELP ard_http_requests_in_flight Current in-flight HTTP requests.\n")
 	builder.WriteString("# TYPE ard_http_requests_in_flight gauge\n")
 	fmt.Fprintf(&builder, "ard_http_requests_in_flight %d\n", metrics.inFlight.Load())
+	writeRuntimeMetrics(&builder)
 	builder.WriteString("# HELP ard_http_requests_total Total HTTP requests by method, route, and status.\n")
 	builder.WriteString("# TYPE ard_http_requests_total counter\n")
 	for _, key := range keys {
@@ -102,6 +104,30 @@ func (metrics *metricsCollector) render() string {
 		fmt.Fprintf(&builder, "ard_http_request_duration_seconds_sum{%s} %.9f\n", metricLabels(key), latency[key].Seconds())
 	}
 	return builder.String()
+}
+
+func writeRuntimeMetrics(builder *strings.Builder) {
+	var stats runtime.MemStats
+	runtime.ReadMemStats(&stats)
+
+	builder.WriteString("# HELP ard_runtime_goroutines Current number of goroutines.\n")
+	builder.WriteString("# TYPE ard_runtime_goroutines gauge\n")
+	fmt.Fprintf(builder, "ard_runtime_goroutines %d\n", runtime.NumGoroutine())
+	builder.WriteString("# HELP ard_runtime_heap_alloc_bytes Bytes allocated and still in use on the heap.\n")
+	builder.WriteString("# TYPE ard_runtime_heap_alloc_bytes gauge\n")
+	fmt.Fprintf(builder, "ard_runtime_heap_alloc_bytes %d\n", stats.HeapAlloc)
+	builder.WriteString("# HELP ard_runtime_heap_sys_bytes Bytes of heap memory obtained from the OS.\n")
+	builder.WriteString("# TYPE ard_runtime_heap_sys_bytes gauge\n")
+	fmt.Fprintf(builder, "ard_runtime_heap_sys_bytes %d\n", stats.HeapSys)
+	builder.WriteString("# HELP ard_runtime_next_gc_bytes Target heap size for the next GC cycle.\n")
+	builder.WriteString("# TYPE ard_runtime_next_gc_bytes gauge\n")
+	fmt.Fprintf(builder, "ard_runtime_next_gc_bytes %d\n", stats.NextGC)
+	builder.WriteString("# HELP ard_runtime_gc_cycles_total Completed GC cycles.\n")
+	builder.WriteString("# TYPE ard_runtime_gc_cycles_total counter\n")
+	fmt.Fprintf(builder, "ard_runtime_gc_cycles_total %d\n", stats.NumGC)
+	builder.WriteString("# HELP ard_runtime_last_gc_unix_seconds Unix timestamp of the last completed GC cycle, or 0 when no GC has completed.\n")
+	builder.WriteString("# TYPE ard_runtime_last_gc_unix_seconds gauge\n")
+	fmt.Fprintf(builder, "ard_runtime_last_gc_unix_seconds %.9f\n", float64(stats.LastGC)/float64(time.Second))
 }
 
 func (server Server) metrics(context *gin.Context) {
