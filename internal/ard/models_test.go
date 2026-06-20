@@ -616,6 +616,36 @@ func TestSearchFilterAcceptsScalarAndArray(t *testing.T) {
 	}
 }
 
+func TestSearchRequestUnmarshalRejectsUnknownFields(t *testing.T) {
+	var rootRequest SearchRequest
+	rootBody := []byte(`{
+		"query": {"text": "weather"},
+		"federations": "none"
+	}`)
+	err := json.Unmarshal(rootBody, &rootRequest)
+	if err == nil {
+		t.Fatal("expected unknown search request field to be rejected")
+	}
+	if !strings.Contains(err.Error(), `searchRequest contains unsupported field "federations"`) {
+		t.Fatalf("expected unknown search request field error, got %v", err)
+	}
+
+	var queryRequest SearchRequest
+	queryBody := []byte(`{
+		"query": {
+			"text": "weather",
+			"sort": "score"
+		}
+	}`)
+	err = json.Unmarshal(queryBody, &queryRequest)
+	if err == nil {
+		t.Fatal("expected unknown search query field to be rejected")
+	}
+	if !strings.Contains(err.Error(), `query contains unsupported field "sort"`) {
+		t.Fatalf("expected unknown query field error, got %v", err)
+	}
+}
+
 func TestValidateSearchRequest(t *testing.T) {
 	if err := ValidateSearchRequest(SearchRequest{Query: SearchQuery{Text: "weather"}}); err != nil {
 		t.Fatalf("expected default federation to validate: %v", err)

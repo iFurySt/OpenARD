@@ -48,6 +48,16 @@ var allowedHostInfoFields = map[string]struct{}{
 	"logoUrl":          {},
 	"trustManifest":    {},
 }
+var allowedSearchRequestFields = map[string]struct{}{
+	"query":      {},
+	"federation": {},
+	"pageSize":   {},
+	"pageToken":  {},
+}
+var allowedSearchQueryFields = map[string]struct{}{
+	"text":   {},
+	"filter": {},
+}
 var allowedTrustManifestFields = map[string]struct{}{
 	"identity":     {},
 	"identityType": {},
@@ -146,6 +156,24 @@ type SearchQuery struct {
 	Filter Filter `json:"filter,omitempty"`
 }
 
+func (query *SearchQuery) UnmarshalJSON(data []byte) error {
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	if err := validateKnownJSONFields(raw, allowedSearchQueryFields, "query"); err != nil {
+		return err
+	}
+
+	type searchQueryAlias SearchQuery
+	var decoded searchQueryAlias
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	*query = SearchQuery(decoded)
+	return nil
+}
+
 type Filter map[string][]string
 
 type SearchRequest struct {
@@ -153,6 +181,24 @@ type SearchRequest struct {
 	Federation string      `json:"federation,omitempty"`
 	PageSize   int         `json:"pageSize,omitempty"`
 	PageToken  string      `json:"pageToken,omitempty"`
+}
+
+func (request *SearchRequest) UnmarshalJSON(data []byte) error {
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	if err := validateKnownJSONFields(raw, allowedSearchRequestFields, "searchRequest"); err != nil {
+		return err
+	}
+
+	type searchRequestAlias SearchRequest
+	var decoded searchRequestAlias
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	*request = SearchRequest(decoded)
+	return nil
 }
 
 type SearchResult struct {

@@ -216,6 +216,24 @@ func TestRouterSearchWithPostgres(t *testing.T) {
 		t.Fatalf("expected invalid federation message, got %s", invalidFederationResponse.Body.String())
 	}
 
+	unknownRootFieldBody := []byte(`{"query":{"text":"weather"},"federations":"none"}`)
+	unknownRootFieldRequest := httptest.NewRequest(http.MethodPost, "/search", bytes.NewReader(unknownRootFieldBody))
+	unknownRootFieldRequest.Header.Set("Content-Type", "application/json")
+	unknownRootFieldResponse := httptest.NewRecorder()
+	router.ServeHTTP(unknownRootFieldResponse, unknownRootFieldRequest)
+	if unknownRootFieldResponse.Code != http.StatusBadRequest {
+		t.Fatalf("expected unknown root field HTTP 400, got %d: %s", unknownRootFieldResponse.Code, unknownRootFieldResponse.Body.String())
+	}
+
+	unknownQueryFieldBody := []byte(`{"query":{"text":"weather","sort":"score"}}`)
+	unknownQueryFieldRequest := httptest.NewRequest(http.MethodPost, "/search", bytes.NewReader(unknownQueryFieldBody))
+	unknownQueryFieldRequest.Header.Set("Content-Type", "application/json")
+	unknownQueryFieldResponse := httptest.NewRecorder()
+	router.ServeHTTP(unknownQueryFieldResponse, unknownQueryFieldRequest)
+	if unknownQueryFieldResponse.Code != http.StatusBadRequest {
+		t.Fatalf("expected unknown query field HTTP 400, got %d: %s", unknownQueryFieldResponse.Code, unknownQueryFieldResponse.Body.String())
+	}
+
 	federatedBody, _ := json.Marshal(ard.SearchRequest{
 		Query: ard.SearchQuery{
 			Text: "weather",
