@@ -424,6 +424,36 @@ func TestRouterAgentsAndExploreWithPostgres(t *testing.T) {
 	if len(explored.Facets["type"].Buckets) == 0 {
 		t.Fatalf("expected type facet buckets: %#v", explored)
 	}
+
+	unknownExploreRootBody := []byte(`{"resultType":{"facets":[{"field":"type"}]},"sort":"type"}`)
+	unknownExploreRootRequest := httptest.NewRequest(http.MethodPost, "/explore", bytes.NewReader(unknownExploreRootBody))
+	unknownExploreRootRequest.Header.Set("Content-Type", "application/json")
+	unknownExploreRootResponse := httptest.NewRecorder()
+	router.ServeHTTP(unknownExploreRootResponse, unknownExploreRootRequest)
+	if unknownExploreRootResponse.Code != http.StatusBadRequest {
+		t.Fatalf("expected unknown explore root field HTTP 400, got %d: %s", unknownExploreRootResponse.Code, unknownExploreRootResponse.Body.String())
+	}
+
+	unknownExploreFacetBody := []byte(`{"resultType":{"facets":[{"field":"type","order":"desc"}]}}`)
+	unknownExploreFacetRequest := httptest.NewRequest(http.MethodPost, "/explore", bytes.NewReader(unknownExploreFacetBody))
+	unknownExploreFacetRequest.Header.Set("Content-Type", "application/json")
+	unknownExploreFacetResponse := httptest.NewRecorder()
+	router.ServeHTTP(unknownExploreFacetResponse, unknownExploreFacetRequest)
+	if unknownExploreFacetResponse.Code != http.StatusBadRequest {
+		t.Fatalf("expected unknown explore facet field HTTP 400, got %d: %s", unknownExploreFacetResponse.Code, unknownExploreFacetResponse.Body.String())
+	}
+
+	emptyExploreFacetBody := []byte(`{"resultType":{"facets":[{"field":" "} ]}}`)
+	emptyExploreFacetRequest := httptest.NewRequest(http.MethodPost, "/explore", bytes.NewReader(emptyExploreFacetBody))
+	emptyExploreFacetRequest.Header.Set("Content-Type", "application/json")
+	emptyExploreFacetResponse := httptest.NewRecorder()
+	router.ServeHTTP(emptyExploreFacetResponse, emptyExploreFacetRequest)
+	if emptyExploreFacetResponse.Code != http.StatusBadRequest {
+		t.Fatalf("expected empty explore facet field HTTP 400, got %d: %s", emptyExploreFacetResponse.Code, emptyExploreFacetResponse.Body.String())
+	}
+	if !bytes.Contains(emptyExploreFacetResponse.Body.Bytes(), []byte("resultType.facets[0].field is required")) {
+		t.Fatalf("expected empty facet field message, got %s", emptyExploreFacetResponse.Body.String())
+	}
 }
 
 func TestRouterAdminAPIWithPostgres(t *testing.T) {

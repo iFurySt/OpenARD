@@ -266,10 +266,10 @@ func (server Server) explore(context *gin.Context) {
 		})
 		return
 	}
-	if len(request.ResultType.Facets) == 0 {
+	if err := ard.ValidateExploreRequest(request); err != nil {
 		context.JSON(http.StatusBadRequest, gin.H{
 			"errorCode": "INVALID_ARGUMENT",
-			"message":   "resultType.facets is required",
+			"message":   err.Error(),
 		})
 		return
 	}

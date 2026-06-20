@@ -660,3 +660,80 @@ func TestValidateSearchRequest(t *testing.T) {
 		t.Fatal("expected unsupported federation mode to be rejected")
 	}
 }
+
+func TestExploreRequestUnmarshalRejectsUnknownFields(t *testing.T) {
+	var rootRequest ExploreRequest
+	rootBody := []byte(`{
+		"resultType": {"facets": [{"field": "type"}]},
+		"sort": "type"
+	}`)
+	err := json.Unmarshal(rootBody, &rootRequest)
+	if err == nil {
+		t.Fatal("expected unknown explore request field to be rejected")
+	}
+	if !strings.Contains(err.Error(), `exploreRequest contains unsupported field "sort"`) {
+		t.Fatalf("expected unknown explore request field error, got %v", err)
+	}
+
+	var queryRequest ExploreRequest
+	queryBody := []byte(`{
+		"query": {
+			"text": "weather",
+			"sort": "score"
+		},
+		"resultType": {"facets": [{"field": "type"}]}
+	}`)
+	err = json.Unmarshal(queryBody, &queryRequest)
+	if err == nil {
+		t.Fatal("expected unknown explore query field to be rejected")
+	}
+	if !strings.Contains(err.Error(), `query contains unsupported field "sort"`) {
+		t.Fatalf("expected unknown query field error, got %v", err)
+	}
+
+	var facetRequest ExploreRequest
+	facetBody := []byte(`{
+		"resultType": {"facets": [{"field": "type", "order": "desc"}]}
+	}`)
+	err = json.Unmarshal(facetBody, &facetRequest)
+	if err == nil {
+		t.Fatal("expected unknown explore facet field to be rejected")
+	}
+	if !strings.Contains(err.Error(), `exploreFacetRequest contains unsupported field "order"`) {
+		t.Fatalf("expected unknown explore facet field error, got %v", err)
+	}
+}
+
+func TestValidateExploreRequest(t *testing.T) {
+	valid := ExploreRequest{
+		ResultType: ExploreResultType{
+			Facets: []ExploreFacetRequest{{Field: "type"}},
+		},
+	}
+	if err := ValidateExploreRequest(valid); err != nil {
+		t.Fatalf("expected valid explore request: %v", err)
+	}
+
+	missingFacets := ExploreRequest{}
+	if err := ValidateExploreRequest(missingFacets); err == nil || !strings.Contains(err.Error(), "resultType.facets is required") {
+		t.Fatalf("expected missing facets to be rejected, got %v", err)
+	}
+
+	emptyField := valid
+	emptyField.ResultType.Facets = []ExploreFacetRequest{{Field: " "}}
+	if err := ValidateExploreRequest(emptyField); err == nil || !strings.Contains(err.Error(), "resultType.facets[0].field is required") {
+		t.Fatalf("expected empty facet field to be rejected, got %v", err)
+	}
+
+	negativeLimit := valid
+	negativeLimit.ResultType.Facets = []ExploreFacetRequest{{Field: "type", Limit: -1}}
+	if err := ValidateExploreRequest(negativeLimit); err == nil || !strings.Contains(err.Error(), "resultType.facets[0].limit must be non-negative") {
+		t.Fatalf("expected negative limit to be rejected, got %v", err)
+	}
+
+	negativeMinCount := valid
+	negativeMinCount.ResultType.Facets = []ExploreFacetRequest{{Field: "type", MinCount: -1}}
+	if err := ValidateExploreRequest(negativeMinCount); err == nil || !strings.Contains(err.Error(), "resultType.facets[0].minCount must be non-negative") {
+		t.Fatalf("expected negative minCount to be rejected, got %v", err)
+	}
+}

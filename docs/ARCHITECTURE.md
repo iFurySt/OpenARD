@@ -19,6 +19,9 @@ Cobra, Gin, GORM, and Postgres.
 - Client flow: `ard search` sends spec-shaped `SearchRequest` bodies to a registry.
   The registry rejects unknown request/query fields, missing `query.text`, and unsupported
   `federation` values instead of silently normalizing invalid request modes.
+- Explore flow: `POST /explore` accepts spec-shaped `ExploreRequest` bodies for local
+  facet aggregation. The registry rejects unknown request/query/facet fields and invalid
+  facet requests instead of silently ignoring malformed introspection options.
 - Pagination: `POST /search`, `GET /agents`, and admin list/review/audit endpoints
   return opaque offset page tokens when additional local results are available.
 - Federation referrals: `POST /search` supports `federation=referrals` by returning
@@ -188,7 +191,8 @@ boundary without changing HTTP contracts.
   entries. Implemented.
 - `POST /search`: ARD search endpoint with root/query known-field validation plus
   root-level `pageSize`, `pageToken`, and `federation` enum validation. Implemented.
-- `POST /explore`: optional; implemented for local facet aggregation.
+- `POST /explore`: optional; implemented for local facet aggregation with request,
+  query, and facet known-field validation.
 - `GET /agents`: optional deterministic browse endpoint with `pageSize` and `pageToken`.
   Implemented for basic listing.
 - `GET /health`: deployment health. Implemented.

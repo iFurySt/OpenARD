@@ -58,6 +58,15 @@ var allowedSearchQueryFields = map[string]struct{}{
 	"text":   {},
 	"filter": {},
 }
+var allowedExploreRequestFields = map[string]struct{}{
+	"query":      {},
+	"resultType": {},
+}
+var allowedExploreFacetRequestFields = map[string]struct{}{
+	"field":    {},
+	"limit":    {},
+	"minCount": {},
+}
 var allowedTrustManifestFields = map[string]struct{}{
 	"identity":     {},
 	"identityType": {},
@@ -218,6 +227,24 @@ type ExploreRequest struct {
 	ResultType ExploreResultType `json:"resultType"`
 }
 
+func (request *ExploreRequest) UnmarshalJSON(data []byte) error {
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	if err := validateKnownJSONFields(raw, allowedExploreRequestFields, "exploreRequest"); err != nil {
+		return err
+	}
+
+	type exploreRequestAlias ExploreRequest
+	var decoded exploreRequestAlias
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	*request = ExploreRequest(decoded)
+	return nil
+}
+
 type ExploreResultType struct {
 	Facets []ExploreFacetRequest `json:"facets"`
 }
@@ -226,6 +253,24 @@ type ExploreFacetRequest struct {
 	Field    string `json:"field"`
 	Limit    int    `json:"limit,omitempty"`
 	MinCount int    `json:"minCount,omitempty"`
+}
+
+func (request *ExploreFacetRequest) UnmarshalJSON(data []byte) error {
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	if err := validateKnownJSONFields(raw, allowedExploreFacetRequestFields, "exploreFacetRequest"); err != nil {
+		return err
+	}
+
+	type exploreFacetRequestAlias ExploreFacetRequest
+	var decoded exploreFacetRequestAlias
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	*request = ExploreFacetRequest(decoded)
+	return nil
 }
 
 type ExploreResponse struct {
@@ -311,6 +356,24 @@ func ValidateSearchRequest(request SearchRequest) error {
 	default:
 		return errors.New("federation must be one of auto, referrals, none")
 	}
+}
+
+func ValidateExploreRequest(request ExploreRequest) error {
+	if len(request.ResultType.Facets) == 0 {
+		return errors.New("resultType.facets is required")
+	}
+	for index, facet := range request.ResultType.Facets {
+		if strings.TrimSpace(facet.Field) == "" {
+			return fmt.Errorf("resultType.facets[%d].field is required", index)
+		}
+		if facet.Limit < 0 {
+			return fmt.Errorf("resultType.facets[%d].limit must be non-negative", index)
+		}
+		if facet.MinCount < 0 {
+			return fmt.Errorf("resultType.facets[%d].minCount must be non-negative", index)
+		}
+	}
+	return nil
 }
 
 func ValidateCatalog(catalog Catalog) error {
