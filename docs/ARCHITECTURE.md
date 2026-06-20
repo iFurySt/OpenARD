@@ -7,8 +7,8 @@ Cobra, Gin, GORM, and Postgres.
 
 - Registry server: self-hosted ARD registry exposing discovery, search, health, and
   catalog endpoints through Gin.
-- CLI: Cobra operational entry point for `serve`, `add catalog`, and `search` today;
-  `crawl`, `verify`, and export flows remain planned.
+- CLI: Cobra operational entry point for `serve`, `add catalog`, `crawl`, `verify
+  catalog`, and `search` today; export flows remain planned.
 - Client flow: `ard search` sends spec-shaped `SearchRequest` bodies to a registry.
 - Catalog ingestion: `ard add catalog` loads local or remote `ai-catalog.json` files,
   validates them, and persists entries.
@@ -96,8 +96,8 @@ boundary without changing HTTP contracts.
 - `GET /agents`: optional deterministic browse endpoint; useful for B2B portals but not
   implemented yet.
 - `GET /health`: deployment health. Implemented.
-- CLI equivalents: `serve`, `add catalog`, and `search` are implemented; `crawl`,
-  `verify`, and `export` are planned.
+- CLI equivalents: `serve`, `add catalog`, `crawl`, `verify catalog`, and `search` are
+  implemented; `export` is planned.
 
 ## Specification Alignment
 

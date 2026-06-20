@@ -23,6 +23,8 @@ func NewRootCommand() *cobra.Command {
 
 	command.AddCommand(newServeCommand(&options))
 	command.AddCommand(newAddCommand(&options))
+	command.AddCommand(newCrawlCommand(&options))
 	command.AddCommand(newSearchCommand())
+	command.AddCommand(newVerifyCommand())
 	return command
 }

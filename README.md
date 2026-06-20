@@ -35,14 +35,17 @@ make build
 make test-integration
 
 bin/ard --database-url "$DATABASE_URL" add catalog ./internal/catalog/testdata/acme-ai-catalog.json
+bin/ard verify catalog ./internal/catalog/testdata/acme-ai-catalog.json
+bin/ard --database-url "$DATABASE_URL" crawl https://example.com/
 bin/ard --database-url "$DATABASE_URL" serve
 bin/ard search "weather forecast" --kind mcp --json
 ```
 
 ## Status
 
-This repository is in early implementation. The first milestone includes a Go CLI,
-Gin-based registry server, GORM/Postgres persistence, catalog import, and ARD search.
+This repository is in early implementation. Current milestones include a Go CLI,
+Gin-based registry server, GORM/Postgres persistence, catalog import, well-known catalog
+crawl, catalog verification, and ARD search.
 
 Implementation should track the upstream
 [`ards-project/ard-spec`](https://github.com/ards-project/ard-spec) closely, including

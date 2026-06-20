@@ -46,3 +46,21 @@ func TestLoadHTTPCatalog(t *testing.T) {
 		t.Fatalf("expected 2 entries, got %d", len(catalog.Entries))
 	}
 }
+
+func TestWellKnownCatalogURL(t *testing.T) {
+	got, err := WellKnownCatalogURL("https://example.com/products")
+	if err != nil {
+		t.Fatalf("resolve well-known URL: %v", err)
+	}
+	if got != "https://example.com/.well-known/ai-catalog.json" {
+		t.Fatalf("unexpected well-known URL: %s", got)
+	}
+
+	direct, err := WellKnownCatalogURL("https://example.com/catalogs/ai-catalog.json")
+	if err != nil {
+		t.Fatalf("resolve direct catalog URL: %v", err)
+	}
+	if direct != "https://example.com/catalogs/ai-catalog.json" {
+		t.Fatalf("unexpected direct URL: %s", direct)
+	}
+}

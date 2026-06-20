@@ -63,7 +63,7 @@ func TestPostgresImportAndSearch(t *testing.T) {
 			},
 		},
 		PageSize: 10,
-	}, "")
+	}, "integration-test")
 	if err != nil {
 		t.Fatalf("search: %v", err)
 	}
