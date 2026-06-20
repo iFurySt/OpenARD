@@ -49,5 +49,6 @@ operators can identify the registry binary answering a request.
 ## Validation
 
 `make test-public-go-client` creates a temporary external module, imports the public SDK,
-and exercises discovery plus admin client calls. CI runs this check on every push and
-pull request.
+and exercises the public discovery, catalog, health, explore, admin list/upsert/status,
+review, audit, delete, validation helper, publisher helper, and `HTTPError` surfaces.
+CI runs this check on every push and pull request.
