@@ -52,9 +52,11 @@ func TestVerifyCatalogVerifiesJWSSignatures(t *testing.T) {
 	if err := os.WriteFile(anchorsPath, []byte(`{
   "keys": [
     {
+      "kty": "OKP",
+      "crv": "Ed25519",
       "kid": "acme-ed25519",
       "alg": "EdDSA",
-      "publicKey": "`+base64.RawURLEncoding.EncodeToString(publicKey)+`"
+      "x": "`+base64.RawURLEncoding.EncodeToString(publicKey)+`"
     }
   ]
 }`), 0o600); err != nil {

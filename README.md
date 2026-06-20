@@ -134,7 +134,8 @@ discovery. Audit events are hash-chained and can be verified through
 `ardctl admin audit --verify-chain`. Server
 deployments can use a single admin token or reloadable role-scoped admin token files. URL
 artifacts can be pinned and verified with `trustManifest.sourceDigest`, and detached JWS
-`trustManifest.signature` values can be verified against explicit Ed25519 trust anchors.
+`trustManifest.signature` values can be verified against explicit Ed25519 or local JWKS
+trust anchors.
 Search supports
 client-followed federation referrals, bounded server-side `federation=auto` upstream
 score-ranked result merging with opaque cross-registry page tokens, and `pageToken`

@@ -5,6 +5,8 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -36,6 +38,67 @@ func TestVerifySignatures(t *testing.T) {
 	}
 	if len(results) != 1 || !results[0].Verified || results[0].KeyID != "acme-ed25519" {
 		t.Fatalf("unexpected results: %#v", results)
+	}
+}
+
+func TestLoadTrustAnchorsAcceptsJWKSOKPEd25519(t *testing.T) {
+	publicKey, privateKey, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatalf("generate key: %v", err)
+	}
+	anchorsPath := filepath.Join(t.TempDir(), "jwks.json")
+	if err := os.WriteFile(anchorsPath, []byte(`{
+  "keys": [
+    {
+      "kty": "OKP",
+      "crv": "Ed25519",
+      "kid": "acme-ed25519",
+      "alg": "EdDSA",
+      "x": "`+base64.RawURLEncoding.EncodeToString(publicKey)+`"
+    }
+  ]
+}`), 0o600); err != nil {
+		t.Fatalf("write JWKS: %v", err)
+	}
+
+	anchors, err := LoadTrustAnchors(anchorsPath)
+	if err != nil {
+		t.Fatalf("load JWKS trust anchors: %v", err)
+	}
+	trustManifest := map[string]any{
+		"identity": "https://example.com",
+	}
+	trustManifest["signature"] = testDetachedJWS(t, "acme-ed25519", trustManifest, privateKey)
+	results, err := VerifySignatures(signedCatalog(trustManifest), SignatureOptions{
+		TrustAnchors: anchors,
+	})
+	if err != nil {
+		t.Fatalf("verify signature with JWKS trust anchors: %v", err)
+	}
+	if len(results) != 1 || !results[0].Verified {
+		t.Fatalf("unexpected results: %#v", results)
+	}
+}
+
+func TestLoadTrustAnchorsRejectsUnsupportedJWKSKey(t *testing.T) {
+	anchorsPath := filepath.Join(t.TempDir(), "jwks.json")
+	if err := os.WriteFile(anchorsPath, []byte(`{
+  "keys": [
+    {
+      "kty": "OKP",
+      "crv": "X25519",
+      "kid": "acme-x25519",
+      "alg": "EdDSA",
+      "x": "abc"
+    }
+  ]
+}`), 0o600); err != nil {
+		t.Fatalf("write JWKS: %v", err)
+	}
+
+	_, err := LoadTrustAnchors(anchorsPath)
+	if err == nil || !strings.Contains(err.Error(), "JWKS crv must be Ed25519") {
+		t.Fatalf("expected unsupported JWKS curve error, got %v", err)
 	}
 }
 

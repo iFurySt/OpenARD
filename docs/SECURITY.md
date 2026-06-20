@@ -68,7 +68,9 @@ Use this document to make secure defaults explicit and legible to agents.
   carry `trustManifest.sourceDigest` and verifies those digests. Embedded `data`
   entries are exempt.
 - `ard verify catalog --jws-trust-anchors ./trust-anchors.json` verifies detached compact
-  JWS `trustManifest.signature` values against explicit Ed25519 trust anchors.
+  JWS `trustManifest.signature` values against explicit Ed25519 trust anchors. The
+  trust-anchor file can use either ard's native `publicKey` format or local JWKS
+  OKP/Ed25519 keys.
 - `ard verify catalog --require-jws-signatures` requires every catalog entry to carry a
   verifiable detached JWS `trustManifest.signature`; it must be used with
   `--jws-trust-anchors`.
@@ -76,7 +78,7 @@ Use this document to make secure defaults explicit and legible to agents.
   prove publisher identity, trust schema authority, attestation truth, runtime safety, or
   compliance status. JWS verification proves the configured key signed the
   `trustManifest` payload; it does not prove who controls that key or whether the signed
-  claims are true.
+  claims are true, and it does not fetch remote JWKS documents.
 - Detailed trust behavior is in `docs/TRUST.md`.
 
 ## Audit Events

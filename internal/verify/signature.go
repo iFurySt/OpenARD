@@ -35,6 +35,19 @@ type TrustAnchorKey struct {
 	parsedKey ed25519.PublicKey
 }
 
+type rawTrustAnchorDocument struct {
+	Keys []json.RawMessage `json:"keys"`
+}
+
+type rawTrustAnchorKey struct {
+	KeyID     string `json:"kid"`
+	Algorithm string `json:"alg"`
+	PublicKey string `json:"publicKey"`
+	KeyType   string `json:"kty"`
+	Curve     string `json:"crv"`
+	X         string `json:"x"`
+}
+
 type jwsProtectedHeader struct {
 	Algorithm string `json:"alg"`
 	KeyID     string `json:"kid,omitempty"`
@@ -46,14 +59,61 @@ func LoadTrustAnchors(path string) (TrustAnchors, error) {
 	if err != nil {
 		return TrustAnchors{}, err
 	}
-	var anchors TrustAnchors
-	if err := json.Unmarshal(data, &anchors); err != nil {
+	anchors, err := parseTrustAnchors(data)
+	if err != nil {
 		return TrustAnchors{}, err
 	}
 	if err := anchors.prepare(); err != nil {
 		return TrustAnchors{}, err
 	}
 	return anchors, nil
+}
+
+func parseTrustAnchors(data []byte) (TrustAnchors, error) {
+	var rawDocument rawTrustAnchorDocument
+	if err := json.Unmarshal(data, &rawDocument); err != nil {
+		return TrustAnchors{}, err
+	}
+	anchors := TrustAnchors{Keys: make([]TrustAnchorKey, 0, len(rawDocument.Keys))}
+	for index, rawKey := range rawDocument.Keys {
+		key, err := parseTrustAnchorKey(rawKey)
+		if err != nil {
+			return TrustAnchors{}, fmt.Errorf("trust anchors keys[%d]: %w", index, err)
+		}
+		anchors.Keys = append(anchors.Keys, key)
+	}
+	return anchors, nil
+}
+
+func parseTrustAnchorKey(data []byte) (TrustAnchorKey, error) {
+	var rawKey rawTrustAnchorKey
+	if err := json.Unmarshal(data, &rawKey); err != nil {
+		return TrustAnchorKey{}, err
+	}
+	if rawKey.PublicKey != "" {
+		return TrustAnchorKey{
+			KeyID:     rawKey.KeyID,
+			Algorithm: rawKey.Algorithm,
+			PublicKey: rawKey.PublicKey,
+		}, nil
+	}
+	if rawKey.KeyType == "" && rawKey.Curve == "" && rawKey.X == "" {
+		return TrustAnchorKey{}, errors.New("publicKey or JWKS kty/crv/x is required")
+	}
+	if rawKey.KeyType != "OKP" {
+		return TrustAnchorKey{}, errors.New("JWKS kty must be OKP")
+	}
+	if rawKey.Curve != "Ed25519" {
+		return TrustAnchorKey{}, errors.New("JWKS crv must be Ed25519")
+	}
+	if strings.TrimSpace(rawKey.X) == "" {
+		return TrustAnchorKey{}, errors.New("JWKS x is required")
+	}
+	return TrustAnchorKey{
+		KeyID:     rawKey.KeyID,
+		Algorithm: rawKey.Algorithm,
+		PublicKey: rawKey.X,
+	}, nil
 }
 
 func VerifySignatures(catalog ard.Catalog, options SignatureOptions) ([]SignatureResult, error) {
