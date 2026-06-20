@@ -1,0 +1,125 @@
+package httpapi
+
+import (
+	"fmt"
+	"net/http"
+	"sort"
+	"strconv"
+	"strings"
+	"sync"
+	"sync/atomic"
+	"time"
+
+	"github.com/gin-gonic/gin"
+)
+
+type metricsCollector struct {
+	startedAt time.Time
+	inFlight  atomic.Int64
+	mu        sync.Mutex
+	requests  map[metricsKey]uint64
+	latency   map[metricsKey]time.Duration
+}
+
+type metricsKey struct {
+	method string
+	route  string
+	status int
+}
+
+func newMetricsCollector() *metricsCollector {
+	return &metricsCollector{
+		startedAt: time.Now().UTC(),
+		requests:  map[metricsKey]uint64{},
+		latency:   map[metricsKey]time.Duration{},
+	}
+}
+
+func metricsMiddleware(metrics *metricsCollector) gin.HandlerFunc {
+	return func(context *gin.Context) {
+		startedAt := time.Now()
+		metrics.inFlight.Add(1)
+		defer metrics.inFlight.Add(-1)
+
+		context.Next()
+
+		metrics.record(
+			context.Request.Method,
+			routeLabel(context),
+			context.Writer.Status(),
+			time.Since(startedAt),
+		)
+	}
+}
+
+func (metrics *metricsCollector) record(method string, route string, status int, latency time.Duration) {
+	key := metricsKey{method: method, route: route, status: status}
+	metrics.mu.Lock()
+	defer metrics.mu.Unlock()
+	metrics.requests[key]++
+	metrics.latency[key] += latency
+}
+
+func (metrics *metricsCollector) render() string {
+	metrics.mu.Lock()
+	keys := make([]metricsKey, 0, len(metrics.requests))
+	requests := make(map[metricsKey]uint64, len(metrics.requests))
+	latency := make(map[metricsKey]time.Duration, len(metrics.latency))
+	for key, value := range metrics.requests {
+		keys = append(keys, key)
+		requests[key] = value
+	}
+	for key, value := range metrics.latency {
+		latency[key] = value
+	}
+	metrics.mu.Unlock()
+
+	sort.Slice(keys, func(i int, j int) bool {
+		if keys[i].method != keys[j].method {
+			return keys[i].method < keys[j].method
+		}
+		if keys[i].route != keys[j].route {
+			return keys[i].route < keys[j].route
+		}
+		return keys[i].status < keys[j].status
+	})
+
+	var builder strings.Builder
+	builder.WriteString("# HELP ard_registry_uptime_seconds Seconds since the registry process started.\n")
+	builder.WriteString("# TYPE ard_registry_uptime_seconds gauge\n")
+	fmt.Fprintf(&builder, "ard_registry_uptime_seconds %.3f\n", time.Since(metrics.startedAt).Seconds())
+	builder.WriteString("# HELP ard_http_requests_in_flight Current in-flight HTTP requests.\n")
+	builder.WriteString("# TYPE ard_http_requests_in_flight gauge\n")
+	fmt.Fprintf(&builder, "ard_http_requests_in_flight %d\n", metrics.inFlight.Load())
+	builder.WriteString("# HELP ard_http_requests_total Total HTTP requests by method, route, and status.\n")
+	builder.WriteString("# TYPE ard_http_requests_total counter\n")
+	for _, key := range keys {
+		fmt.Fprintf(&builder, "ard_http_requests_total{%s} %d\n", metricLabels(key), requests[key])
+	}
+	builder.WriteString("# HELP ard_http_request_duration_seconds_sum Total HTTP request duration by method, route, and status.\n")
+	builder.WriteString("# TYPE ard_http_request_duration_seconds_sum counter\n")
+	for _, key := range keys {
+		fmt.Fprintf(&builder, "ard_http_request_duration_seconds_sum{%s} %.9f\n", metricLabels(key), latency[key].Seconds())
+	}
+	return builder.String()
+}
+
+func (server Server) metrics(context *gin.Context) {
+	context.Data(http.StatusOK, "text/plain; version=0.0.4; charset=utf-8", []byte(server.metricsCollector.render()))
+}
+
+func routeLabel(context *gin.Context) string {
+	if route := context.FullPath(); route != "" {
+		return route
+	}
+	return "unmatched"
+}
+
+func metricLabels(key metricsKey) string {
+	return fmt.Sprintf(
+		`method=%s,route=%s,status=%s`,
+		strconv.Quote(key.method),
+		strconv.Quote(key.route),
+		strconv.Quote(strconv.Itoa(key.status)),
+	)
+}

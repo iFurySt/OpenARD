@@ -14,9 +14,10 @@ import (
 )
 
 type Server struct {
-	store      *store.Store
-	adminToken string
-	policy     *policy.Policy
+	store            *store.Store
+	adminToken       string
+	policy           *policy.Policy
+	metricsCollector *metricsCollector
 }
 
 type Options struct {
@@ -30,11 +31,17 @@ func NewRouter(store *store.Store) *gin.Engine {
 
 func NewRouterWithOptions(store *store.Store, options Options) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
-	server := Server{store: store, adminToken: strings.TrimSpace(options.AdminToken), policy: options.Policy}
+	server := Server{
+		store:            store,
+		adminToken:       strings.TrimSpace(options.AdminToken),
+		policy:           options.Policy,
+		metricsCollector: newMetricsCollector(),
+	}
 	router := gin.New()
-	router.Use(requestIDMiddleware(), jsonAccessLogMiddleware(), gin.Recovery())
+	router.Use(requestIDMiddleware(), metricsMiddleware(server.metricsCollector), jsonAccessLogMiddleware(), gin.Recovery())
 
 	router.GET("/health", server.health)
+	router.GET("/metrics", server.metrics)
 	router.GET("/.well-known/ai-catalog.json", server.catalog)
 	router.GET("/agents", server.agents)
 	router.POST("/search", server.search)

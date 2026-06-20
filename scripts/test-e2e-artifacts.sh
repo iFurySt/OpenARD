@@ -17,6 +17,7 @@ conformance_bin="${ARD_CONFORMANCE_BIN:-../ard-spec/conformance/bin/conformance-
 
 mcp_card_url="https://raw.githubusercontent.com/clauxel/agentmemory-mcp/main/server.json"
 skill_url="https://raw.githubusercontent.com/iFurySt/open-codex-browser-use/main/skills/open-browser-use/SKILL.md"
+skill_fallback="internal/adapters/testdata/open-browser-use/SKILL.md"
 openapi_url="https://petstore3.swagger.io/api/v3/openapi.json"
 
 cleanup() {
@@ -36,14 +37,21 @@ trap cleanup EXIT
 fetch_with_retry() {
   local url="$1"
   local output="$2"
+  local partial="${output}.part"
 
   for _ in $(seq 1 5); do
-    if curl -fsSL "${url}" -o "${output}"; then
+    rm -f "${partial}"
+    if curl -fsSL "${url}" -o "${partial}"; then
+      mv "${partial}" "${output}"
       break
     fi
     sleep 1
   done
-  test -s "${output}"
+  rm -f "${partial}"
+  if [ ! -s "${output}" ]; then
+    echo "failed to fetch ${url}" >&2
+    return 1
+  fi
 }
 
 make build
@@ -99,7 +107,10 @@ done
 curl -fsS "${registry_url}/health" >/dev/null
 
 fetch_with_retry "${mcp_card_url}" "${mcp_card_file}"
-fetch_with_retry "${skill_url}" "${skill_file}"
+if ! fetch_with_retry "${skill_url}" "${skill_file}"; then
+  echo "falling back to checked-in Open Browser Use Skill fixture" >&2
+  cp "${skill_fallback}" "${skill_file}"
+fi
 fetch_with_retry "${openapi_url}" "${openapi_file}"
 
 if bin/ardctl admin list --registry-url "${registry_url}" >/tmp/ard-e2e-no-token.log 2>&1; then

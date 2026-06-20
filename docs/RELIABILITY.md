@@ -22,8 +22,18 @@ Define the operational bar for the repository here.
   status, latency, and client IP.
 - Access logs must not include bearer tokens or request bodies.
 
+## Metrics
+
+- `GET /metrics` returns Prometheus text format without requiring admin authentication.
+- Metrics include registry uptime, in-flight HTTP requests, request totals, and request
+  latency sums by method, route template, and status.
+- Metrics labels must stay low-cardinality. Use route templates or `unmatched`, not raw
+  URLs or identifiers.
+- Metrics must not include bearer tokens, request bodies, search text, or remote artifact
+  URLs.
+
 ## Current Gaps
 
-- Metrics and tracing are not implemented yet.
+- Histograms, runtime metrics, and tracing are not implemented yet.
 - Request correlation IDs are not propagated to outbound artifact fetches yet.
 - There is no documented dashboard or incident response workflow yet.

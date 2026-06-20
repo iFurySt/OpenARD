@@ -37,6 +37,9 @@ Cobra, Gin, GORM, and Postgres.
 - Request correlation: Gin middleware preserves or generates `X-Request-ID`, returns it
   on every HTTP response, emits JSON access logs, and attaches request IDs to admin audit
   events.
+- Metrics: Gin exposes public Prometheus-style `/metrics` with process uptime,
+  in-flight requests, request totals, and request latency sums by method, route, and
+  status.
 - Artifact onboarding: `ard add mcp`, `ard add a2a`, `ard add skill`, and
   `ard add openapi` translate real MCP server cards, A2A agent cards, Skill markdown
   files, and OpenAPI documents into ARD catalog entries.
@@ -133,6 +136,7 @@ boundary without changing HTTP contracts.
 - `POST /explore`: optional; implemented for local facet aggregation.
 - `GET /agents`: optional deterministic browse endpoint; implemented for basic listing.
 - `GET /health`: deployment health. Implemented.
+- `GET /metrics`: Prometheus-style operational metrics. Implemented.
 - `/admin/*`: implementation-specific management routes; disabled unless an admin token
   is configured. Implemented, including entry lifecycle status management and audit event
   listing.
