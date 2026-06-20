@@ -4,6 +4,7 @@
 
 | Date | Area | User Impact | Change Summary |
 | --- | --- | --- | --- |
+| 2026-06-21 | Security | Catalog validation now rejects malformed trust identity type metadata earlier. | Added ARD schema-aligned `trustManifest.identityType` enum validation and stricter `sourceDigest` type checks, with model tests and full verification. |
 | 2026-06-21 | Security | Catalog validation rejects HTTP(S) trust identities that point at a different publisher domain. | Added URL `trustManifest.identity` host alignment with the `urn:air:` publisher, with model tests and full verification. |
 | 2026-06-21 | Governance | Reviewers can record why a pending entry was approved or rejected. | Added review decision `reason` support to the admin API, `ardctl admin review --reason`, persisted audit events, hash-chain verification, integration tests, and real E2E coverage. |
 | 2026-06-21 | Testing | Local E2E and compose verification are less likely to fail due to port conflicts or Docker frontend mirror issues. | Switched test scripts to dynamic ports and unique project/container names, and removed the unused Dockerfile frontend directive. |

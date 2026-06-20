@@ -104,6 +104,48 @@ func TestValidateCatalogEntryTrustManifestIdentityHost(t *testing.T) {
 	}
 }
 
+func TestValidateCatalogEntryTrustManifestIdentityType(t *testing.T) {
+	entry := CatalogEntry{
+		Identifier:  "urn:air:acme.com:server:weather",
+		DisplayName: "Weather Data Node",
+		Type:        TypeMCPServerCard,
+		URL:         "https://api.acme.com/mcp/weather.json",
+		TrustManifest: map[string]any{
+			"identity":     "https://acme.com/security",
+			"identityType": "https",
+		},
+	}
+	if err := ValidateCatalogEntry(entry); err != nil {
+		t.Fatalf("expected supported identityType: %v", err)
+	}
+
+	entry.TrustManifest["identityType"] = "x509"
+	if err := ValidateCatalogEntry(entry); err == nil {
+		t.Fatal("expected unsupported identityType to be rejected")
+	}
+
+	entry.TrustManifest["identityType"] = 42
+	if err := ValidateCatalogEntry(entry); err == nil {
+		t.Fatal("expected non-string identityType to be rejected")
+	}
+}
+
+func TestValidateCatalogEntryTrustManifestSourceDigestType(t *testing.T) {
+	entry := CatalogEntry{
+		Identifier:  "urn:air:acme.com:server:weather",
+		DisplayName: "Weather Data Node",
+		Type:        TypeMCPServerCard,
+		URL:         "https://api.acme.com/mcp/weather.json",
+		TrustManifest: map[string]any{
+			"identity":     "https://acme.com/security",
+			"sourceDigest": 42,
+		},
+	}
+	if err := ValidateCatalogEntry(entry); err == nil {
+		t.Fatal("expected non-string sourceDigest to be rejected")
+	}
+}
+
 func TestSearchFilterAcceptsScalarAndArray(t *testing.T) {
 	var request SearchRequest
 	body := []byte(`{

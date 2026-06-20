@@ -22,6 +22,12 @@ const (
 
 var urnPattern = regexp.MustCompile(`^urn:air:([A-Za-z0-9.-]+)(?::([A-Za-z0-9._:-]+))?:([A-Za-z0-9._-]+)$`)
 var sha256DigestPattern = regexp.MustCompile(`^sha256:[a-fA-F0-9]{64}$`)
+var supportedTrustIdentityTypes = map[string]struct{}{
+	"spiffe": {},
+	"did":    {},
+	"https":  {},
+	"other":  {},
+}
 
 type Catalog struct {
 	SpecVersion string         `json:"specVersion"`
@@ -229,8 +235,21 @@ func validateTrustManifest(identifier string, trustManifest map[string]any) erro
 			}
 		}
 	}
-	if sourceDigest, ok := trustManifest["sourceDigest"].(string); ok && sourceDigest != "" {
-		if !sha256DigestPattern.MatchString(sourceDigest) {
+	if identityType, ok := trustManifest["identityType"]; ok {
+		identityTypeString, ok := identityType.(string)
+		if !ok {
+			return errors.New("trustManifest.identityType must be a string")
+		}
+		if _, ok := supportedTrustIdentityTypes[identityTypeString]; !ok {
+			return errors.New("trustManifest.identityType must be one of spiffe, did, https, other")
+		}
+	}
+	if sourceDigest, ok := trustManifest["sourceDigest"]; ok {
+		sourceDigestString, ok := sourceDigest.(string)
+		if !ok {
+			return errors.New("trustManifest.sourceDigest must be a string")
+		}
+		if sourceDigestString != "" && !sha256DigestPattern.MatchString(sourceDigestString) {
 			return errors.New("trustManifest.sourceDigest must match sha256:<64 hex chars>")
 		}
 	}

@@ -43,9 +43,11 @@ When `--source-digests` is enabled, `ard` fetches each URL entry that has
 ## Current Scope
 
 - Implemented: `trustManifest.identity` presence validation.
+- Implemented: `trustManifest.identityType` type and enum validation against the ARD
+  schema values: `spiffe`, `did`, `https`, and `other`.
 - Implemented: URL `trustManifest.identity` host must match the `urn:air:` publisher
   domain.
-- Implemented: `trustManifest.sourceDigest` format validation.
+- Implemented: `trustManifest.sourceDigest` type and format validation.
 - Implemented: URL artifact source digest verification.
 - Implemented: admin audit event hash chaining and chain verification.
 - Not implemented yet: detached JWS signature verification.
