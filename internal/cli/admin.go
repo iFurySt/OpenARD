@@ -32,11 +32,55 @@ func newAdminCommand() *cobra.Command {
 	}
 	command.PersistentFlags().StringVar(&options.registryURL, "registry-url", envOrDefault("ARD_REGISTRY_URL", "http://127.0.0.1:8080"), "ARD registry base URL")
 	command.PersistentFlags().StringVar(&options.adminToken, "admin-token", "", "Admin bearer token. Defaults to ARD_ADMIN_TOKEN.")
+	command.AddCommand(newAdminAuditCommand(&options))
 	command.AddCommand(newAdminListCommand(&options))
 	command.AddCommand(newAdminAddCommand(&options))
 	command.AddCommand(newAdminExportCommand(&options))
 	command.AddCommand(newAdminRemoveCommand(&options))
 	command.AddCommand(newAdminStatusCommand(&options))
+	return command
+}
+
+func newAdminAuditCommand(options *adminOptions) *cobra.Command {
+	var limit int
+	var jsonOutput bool
+	command := &cobra.Command{
+		Use:   "audit",
+		Short: "List remote admin audit events",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			query := url.Values{}
+			if limit > 0 {
+				query.Set("pageSize", fmt.Sprint(limit))
+			}
+			body, err := adminRequest(cmd.Context(), *options, http.MethodGet, "/admin/audit?"+query.Encode(), nil)
+			if err != nil {
+				return err
+			}
+			if jsonOutput {
+				_, err := cmd.OutOrStdout().Write(append(body, '\n'))
+				return err
+			}
+			var response struct {
+				Items []storeAuditEvent `json:"items"`
+			}
+			if err := json.Unmarshal(body, &response); err != nil {
+				return err
+			}
+			for _, event := range response.Items {
+				fmt.Fprintf(
+					cmd.OutOrStdout(),
+					"%-24s  %-14s  %-8s  %s\n",
+					event.CreatedAt,
+					event.Action,
+					event.Status,
+					event.Identifier,
+				)
+			}
+			return nil
+		},
+	}
+	command.Flags().IntVar(&limit, "limit", 50, "Maximum audit events to list")
+	command.Flags().BoolVar(&jsonOutput, "json", false, "Print remote audit response JSON")
 	return command
 }
 
@@ -265,6 +309,13 @@ func entryStatus(entry ard.CatalogEntry) string {
 		return ""
 	}
 	return status
+}
+
+type storeAuditEvent struct {
+	Action     string `json:"action"`
+	Identifier string `json:"identifier,omitempty"`
+	Status     string `json:"status,omitempty"`
+	CreatedAt  string `json:"createdAt"`
 }
 
 func adminRequest(ctx context.Context, options adminOptions, method string, path string, payload []byte) ([]byte, error) {

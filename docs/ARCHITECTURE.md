@@ -22,11 +22,13 @@ Cobra, Gin, GORM, and Postgres.
   persisted catalog entries.
 - Admin API: when `ARD_ADMIN_TOKEN` or `--admin-token` is configured, Gin exposes
   protected `/admin/*` routes for entry listing, entry upsert, catalog upsert, catalog
-  export, lifecycle status changes, and deletion. `ardctl admin` is the first client for
-  those remote routes.
+  export, lifecycle status changes, audit event listing, and deletion. `ardctl admin` is
+  the first client for those remote routes.
 - Lifecycle governance: persisted entries have an implementation-owned lifecycle status
   of `active`, `pending`, or `disabled`. Public discovery, search, explore, and catalog
   export only expose `active` entries; admin list can include and filter all statuses.
+- Audit log: admin mutations append persisted events for upsert, status changes, and
+  deletion with action, identifier, status, source, remote address, and timestamp.
 - Artifact onboarding: `ard add mcp`, `ard add a2a`, and `ard add skill` translate real
   MCP server cards, A2A agent cards, and Skill markdown files into ARD catalog entries.
 - Verification engine: initial schema-level checks cover `urn:air:`, required fields,
@@ -120,11 +122,13 @@ boundary without changing HTTP contracts.
 - `GET /agents`: optional deterministic browse endpoint; implemented for basic listing.
 - `GET /health`: deployment health. Implemented.
 - `/admin/*`: implementation-specific management routes; disabled unless an admin token
-  is configured. Implemented, including entry lifecycle status management.
+  is configured. Implemented, including entry lifecycle status management and audit event
+  listing.
 - CLI equivalents: `serve`, `add catalog`, `add mcp`, `add a2a`, `add skill`, `crawl`,
   `admin`, `export catalog`, `list`, `remove`, `verify catalog`, and `search` are
-  implemented. `ardctl admin status` manages remote entry lifecycle state. `ard-server`
-  runs the same server without exposing management subcommands.
+  implemented. `ardctl admin status` manages remote entry lifecycle state, and
+  `ardctl admin audit` lists admin mutation events. `ard-server` runs the same server
+  without exposing management subcommands.
 
 ## Specification Alignment
 

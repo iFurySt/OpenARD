@@ -320,4 +320,32 @@ func TestRouterAdminAPIWithPostgres(t *testing.T) {
 	if deleteResponse.Code != http.StatusNoContent {
 		t.Fatalf("expected delete HTTP 204, got %d: %s", deleteResponse.Code, deleteResponse.Body.String())
 	}
+
+	auditRequest := httptest.NewRequest(http.MethodGet, "/admin/audit?pageSize=10", nil)
+	auditRequest.Header.Set("Authorization", "Bearer test-token")
+	auditResponse := httptest.NewRecorder()
+	router.ServeHTTP(auditResponse, auditRequest)
+	if auditResponse.Code != http.StatusOK {
+		t.Fatalf("expected audit HTTP 200, got %d: %s", auditResponse.Code, auditResponse.Body.String())
+	}
+	var audit struct {
+		Items []store.AuditEvent `json:"items"`
+	}
+	if err := json.Unmarshal(auditResponse.Body.Bytes(), &audit); err != nil {
+		t.Fatalf("decode audit: %v", err)
+	}
+	seen := map[string]bool{}
+	for _, event := range audit.Items {
+		if event.Identifier == "urn:air:example.com:server:admin-weather" {
+			seen[event.Action] = true
+			if event.Action == "entry.status" && event.Status == "" {
+				t.Fatalf("expected status audit event to include status: %#v", event)
+			}
+		}
+	}
+	for _, action := range []string{"entry.upsert", "entry.status", "entry.delete"} {
+		if !seen[action] {
+			t.Fatalf("expected audit action %s, got %#v", action, audit.Items)
+		}
+	}
 }

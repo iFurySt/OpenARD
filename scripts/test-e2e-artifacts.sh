@@ -124,6 +124,9 @@ bin/ardctl admin status urn:air:github.com:skill:open-browser-use active \
   --registry-url "${registry_url}" \
   --admin-token "${admin_token}" | grep -q "remote set urn:air:github.com:skill:open-browser-use status to active"
 bin/ardctl search browser --registry-url "${registry_url}" --kind skill --json | grep -q "open-browser-use"
+bin/ardctl admin audit --registry-url "${registry_url}" --admin-token "${admin_token}" --json >/tmp/ard-e2e-audit.json
+grep -q '"action":"entry.status"' /tmp/ard-e2e-audit.json
+grep -q '"identifier":"urn:air:github.com:skill:open-browser-use"' /tmp/ard-e2e-audit.json
 
 bin/ardctl admin remove urn:air:raw.githubusercontent.com:server:agentmemory-mcp \
   --registry-url "${registry_url}" \

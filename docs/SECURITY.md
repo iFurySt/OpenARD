@@ -21,11 +21,20 @@ Use this document to make secure defaults explicit and legible to agents.
 - Lifecycle status is implementation metadata and should not be treated as a substitute
   for role-based authorization, policy decisions, or signed trust verification.
 
+## Audit Events
+
+- Admin upsert, lifecycle status, and delete operations append persisted audit events.
+- Audit events record action, identifier, status when relevant, source, remote address,
+  and timestamp.
+- Audit events do not record admin bearer tokens or request bodies.
+- The current audit log is an MVP event trail, not a complete tamper-evident audit
+  system.
+
 ## Current Gaps
 
 - No role-based authorization yet.
 - No token rotation workflow yet.
-- No request audit log yet.
+- No tamper-evident audit log or request correlation IDs yet.
 - No signature or trust manifest verification beyond schema-level validation yet.
 
 ## Scope

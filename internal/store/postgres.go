@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/ifuryst/ard/internal/ard"
 	"gorm.io/datatypes"
 	"gorm.io/driver/postgres"
@@ -46,6 +47,26 @@ type CatalogEntryRecord struct {
 	UpdatedAt             time.Time
 }
 
+type AuditEventRecord struct {
+	ID         string `gorm:"primaryKey;size:36"`
+	Action     string `gorm:"not null;index"`
+	Identifier string `gorm:"index"`
+	Status     string
+	Source     string `gorm:"not null;index"`
+	RemoteAddr string
+	CreatedAt  time.Time `gorm:"index"`
+}
+
+type AuditEvent struct {
+	ID         string    `json:"id"`
+	Action     string    `json:"action"`
+	Identifier string    `json:"identifier,omitempty"`
+	Status     string    `json:"status,omitempty"`
+	Source     string    `json:"source"`
+	RemoteAddr string    `json:"remoteAddr,omitempty"`
+	CreatedAt  time.Time `json:"createdAt"`
+}
+
 type SearchOptions struct {
 	Text     string
 	Filter   ard.Filter
@@ -71,7 +92,7 @@ func Open(databaseURL string) (*Store, error) {
 }
 
 func (store *Store) AutoMigrate() error {
-	return store.db.AutoMigrate(&CatalogEntryRecord{})
+	return store.db.AutoMigrate(&CatalogEntryRecord{}, &AuditEventRecord{})
 }
 
 func (store *Store) Close() error {
@@ -201,6 +222,55 @@ func (store *Store) DeleteEntry(ctx context.Context, identifier string) (bool, e
 		return false, result.Error
 	}
 	return result.RowsAffected > 0, nil
+}
+
+func (store *Store) RecordAuditEvent(ctx context.Context, event AuditEvent) error {
+	record := AuditEventRecord{
+		ID:         event.ID,
+		Action:     event.Action,
+		Identifier: event.Identifier,
+		Status:     event.Status,
+		Source:     event.Source,
+		RemoteAddr: event.RemoteAddr,
+		CreatedAt:  event.CreatedAt,
+	}
+	if record.ID == "" {
+		record.ID = uuid.NewString()
+	}
+	if record.CreatedAt.IsZero() {
+		record.CreatedAt = time.Now().UTC()
+	}
+	return store.db.WithContext(ctx).Create(&record).Error
+}
+
+func (store *Store) ListAuditEvents(ctx context.Context, limit int) ([]AuditEvent, int64, error) {
+	if limit <= 0 || limit > 100 {
+		limit = 50
+	}
+	var total int64
+	if err := store.db.WithContext(ctx).Model(&AuditEventRecord{}).Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var records []AuditEventRecord
+	if err := store.db.WithContext(ctx).
+		Order("created_at DESC").
+		Limit(limit).
+		Find(&records).Error; err != nil {
+		return nil, 0, err
+	}
+	events := make([]AuditEvent, 0, len(records))
+	for _, record := range records {
+		events = append(events, AuditEvent{
+			ID:         record.ID,
+			Action:     record.Action,
+			Identifier: record.Identifier,
+			Status:     record.Status,
+			Source:     record.Source,
+			RemoteAddr: record.RemoteAddr,
+			CreatedAt:  record.CreatedAt,
+		})
+	}
+	return events, total, nil
 }
 
 func (store *Store) ExportCatalog(ctx context.Context, host *ard.HostInfo) (ard.Catalog, error) {

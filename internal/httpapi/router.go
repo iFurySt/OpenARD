@@ -37,6 +37,7 @@ func NewRouterWithOptions(store *store.Store, options Options) *gin.Engine {
 	router.POST("/explore", server.explore)
 	if server.adminToken != "" {
 		admin := router.Group("/admin", server.requireAdminToken)
+		admin.GET("/audit", server.adminAuditEvents)
 		admin.GET("/entries", server.adminEntries)
 		admin.POST("/entries", server.adminUpsertEntry)
 		admin.POST("/catalogs", server.adminUpsertCatalog)
@@ -213,6 +214,13 @@ func (server Server) adminUpsertEntry(context *gin.Context) {
 		})
 		return
 	}
+	if err := server.recordAuditEvent(context, "entry.upsert", entry.Identifier, ""); err != nil {
+		context.JSON(http.StatusInternalServerError, gin.H{
+			"errorCode": "INTERNAL_ERROR",
+			"message":   err.Error(),
+		})
+		return
+	}
 	context.JSON(http.StatusCreated, entry)
 }
 
@@ -239,8 +247,33 @@ func (server Server) adminUpsertCatalog(context *gin.Context) {
 		})
 		return
 	}
+	for _, entry := range catalog.Entries {
+		if err := server.recordAuditEvent(context, "catalog.upsert", entry.Identifier, ""); err != nil {
+			context.JSON(http.StatusInternalServerError, gin.H{
+				"errorCode": "INTERNAL_ERROR",
+				"message":   err.Error(),
+			})
+			return
+		}
+	}
 	context.JSON(http.StatusCreated, gin.H{
 		"entries": len(catalog.Entries),
+	})
+}
+
+func (server Server) adminAuditEvents(context *gin.Context) {
+	limit, _ := strconv.Atoi(context.DefaultQuery("pageSize", "50"))
+	events, total, err := server.store.ListAuditEvents(context.Request.Context(), limit)
+	if err != nil {
+		context.JSON(http.StatusInternalServerError, gin.H{
+			"errorCode": "INTERNAL_ERROR",
+			"message":   err.Error(),
+		})
+		return
+	}
+	context.JSON(http.StatusOK, gin.H{
+		"items": events,
+		"total": total,
 	})
 }
 
@@ -300,6 +333,13 @@ func (server Server) adminSetEntryStatus(context *gin.Context) {
 		})
 		return
 	}
+	if err := server.recordAuditEvent(context, "entry.status", identifier, status); err != nil {
+		context.JSON(http.StatusInternalServerError, gin.H{
+			"errorCode": "INTERNAL_ERROR",
+			"message":   err.Error(),
+		})
+		return
+	}
 	context.JSON(http.StatusOK, gin.H{
 		"identifier": identifier,
 		"status":     status,
@@ -330,7 +370,24 @@ func (server Server) adminDeleteEntry(context *gin.Context) {
 		})
 		return
 	}
+	if err := server.recordAuditEvent(context, "entry.delete", identifier, ""); err != nil {
+		context.JSON(http.StatusInternalServerError, gin.H{
+			"errorCode": "INTERNAL_ERROR",
+			"message":   err.Error(),
+		})
+		return
+	}
 	context.Status(http.StatusNoContent)
+}
+
+func (server Server) recordAuditEvent(context *gin.Context, action string, identifier string, status string) error {
+	return server.store.RecordAuditEvent(context.Request.Context(), store.AuditEvent{
+		Action:     action,
+		Identifier: identifier,
+		Status:     status,
+		Source:     "admin-api",
+		RemoteAddr: context.ClientIP(),
+	})
 }
 
 func (server Server) requireAdminToken(context *gin.Context) {
