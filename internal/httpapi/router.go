@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"crypto/subtle"
 	"net/http"
 	"strconv"
 	"strings"
@@ -11,12 +12,21 @@ import (
 )
 
 type Server struct {
-	store *store.Store
+	store      *store.Store
+	adminToken string
+}
+
+type Options struct {
+	AdminToken string
 }
 
 func NewRouter(store *store.Store) *gin.Engine {
+	return NewRouterWithOptions(store, Options{})
+}
+
+func NewRouterWithOptions(store *store.Store, options Options) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
-	server := Server{store: store}
+	server := Server{store: store, adminToken: strings.TrimSpace(options.AdminToken)}
 	router := gin.New()
 	router.Use(gin.Recovery())
 
@@ -25,6 +35,14 @@ func NewRouter(store *store.Store) *gin.Engine {
 	router.GET("/agents", server.agents)
 	router.POST("/search", server.search)
 	router.POST("/explore", server.explore)
+	if server.adminToken != "" {
+		admin := router.Group("/admin", server.requireAdminToken)
+		admin.GET("/entries", server.adminEntries)
+		admin.POST("/entries", server.adminUpsertEntry)
+		admin.POST("/catalogs", server.adminUpsertCatalog)
+		admin.GET("/catalog", server.adminExportCatalog)
+		admin.DELETE("/entries/:identifier", server.adminDeleteEntry)
+	}
 	return router
 }
 
@@ -133,6 +151,153 @@ func (server Server) explore(context *gin.Context) {
 		return
 	}
 	context.JSON(http.StatusOK, response)
+}
+
+func (server Server) adminEntries(context *gin.Context) {
+	limit, _ := strconv.Atoi(context.DefaultQuery("pageSize", "20"))
+	mediaType := context.Query("type")
+	if mediaType == "" {
+		mediaType = mediaTypeForKind(context.Query("kind"))
+	}
+	entries, total, err := server.store.ListEntries(context.Request.Context(), store.ListOptions{
+		Limit: limit,
+		Type:  mediaType,
+	})
+	if err != nil {
+		context.JSON(http.StatusInternalServerError, gin.H{
+			"errorCode": "INTERNAL_ERROR",
+			"message":   err.Error(),
+		})
+		return
+	}
+	context.JSON(http.StatusOK, ard.ListResponse{Items: entries, Total: int(total)})
+}
+
+func (server Server) adminUpsertEntry(context *gin.Context) {
+	var entry ard.CatalogEntry
+	if err := context.ShouldBindJSON(&entry); err != nil {
+		context.JSON(http.StatusBadRequest, gin.H{
+			"errorCode": "INVALID_ARGUMENT",
+			"message":   err.Error(),
+		})
+		return
+	}
+	catalog := ard.Catalog{SpecVersion: "1.0", Entries: []ard.CatalogEntry{entry}}
+	if err := ard.ValidateCatalog(catalog); err != nil {
+		context.JSON(http.StatusBadRequest, gin.H{
+			"errorCode": "INVALID_ARGUMENT",
+			"message":   err.Error(),
+		})
+		return
+	}
+	if err := server.store.UpsertCatalog(context.Request.Context(), catalog, "admin-api"); err != nil {
+		context.JSON(http.StatusInternalServerError, gin.H{
+			"errorCode": "INTERNAL_ERROR",
+			"message":   err.Error(),
+		})
+		return
+	}
+	context.JSON(http.StatusCreated, entry)
+}
+
+func (server Server) adminUpsertCatalog(context *gin.Context) {
+	var catalog ard.Catalog
+	if err := context.ShouldBindJSON(&catalog); err != nil {
+		context.JSON(http.StatusBadRequest, gin.H{
+			"errorCode": "INVALID_ARGUMENT",
+			"message":   err.Error(),
+		})
+		return
+	}
+	if err := ard.ValidateCatalog(catalog); err != nil {
+		context.JSON(http.StatusBadRequest, gin.H{
+			"errorCode": "INVALID_ARGUMENT",
+			"message":   err.Error(),
+		})
+		return
+	}
+	if err := server.store.UpsertCatalog(context.Request.Context(), catalog, "admin-api"); err != nil {
+		context.JSON(http.StatusInternalServerError, gin.H{
+			"errorCode": "INTERNAL_ERROR",
+			"message":   err.Error(),
+		})
+		return
+	}
+	context.JSON(http.StatusCreated, gin.H{
+		"entries": len(catalog.Entries),
+	})
+}
+
+func (server Server) adminExportCatalog(context *gin.Context) {
+	catalog, err := server.store.ExportCatalog(context.Request.Context(), &ard.HostInfo{
+		DisplayName: "ARD Registry",
+	})
+	if err != nil {
+		context.JSON(http.StatusInternalServerError, gin.H{
+			"errorCode": "INTERNAL_ERROR",
+			"message":   err.Error(),
+		})
+		return
+	}
+	context.JSON(http.StatusOK, catalog)
+}
+
+func (server Server) adminDeleteEntry(context *gin.Context) {
+	identifier := context.Param("identifier")
+	if err := ard.ValidateIdentifier(identifier); err != nil {
+		context.JSON(http.StatusBadRequest, gin.H{
+			"errorCode": "INVALID_ARGUMENT",
+			"message":   err.Error(),
+		})
+		return
+	}
+	removed, err := server.store.DeleteEntry(context.Request.Context(), identifier)
+	if err != nil {
+		context.JSON(http.StatusInternalServerError, gin.H{
+			"errorCode": "INTERNAL_ERROR",
+			"message":   err.Error(),
+		})
+		return
+	}
+	if !removed {
+		context.JSON(http.StatusNotFound, gin.H{
+			"errorCode": "NOT_FOUND",
+			"message":   "entry not found",
+		})
+		return
+	}
+	context.Status(http.StatusNoContent)
+}
+
+func (server Server) requireAdminToken(context *gin.Context) {
+	expected := "Bearer " + server.adminToken
+	got := context.GetHeader("Authorization")
+	if subtle.ConstantTimeCompare([]byte(got), []byte(expected)) != 1 {
+		context.JSON(http.StatusUnauthorized, gin.H{
+			"errorCode": "UNAUTHENTICATED",
+			"message":   "admin bearer token is required",
+		})
+		context.Abort()
+		return
+	}
+	context.Next()
+}
+
+func mediaTypeForKind(kind string) string {
+	switch kind {
+	case "mcp":
+		return ard.TypeMCPServerCard
+	case "a2a":
+		return ard.TypeA2AAgentCard
+	case "skill":
+		return ard.TypeAISkill
+	case "catalog":
+		return ard.TypeAICatalog
+	case "registry":
+		return ard.TypeAIRegistry
+	default:
+		return kind
+	}
 }
 
 func requestBaseURL(request *http.Request) string {

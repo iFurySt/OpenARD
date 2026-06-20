@@ -13,3 +13,10 @@ func DatabaseURL(flagValue string) string {
 	}
 	return DefaultDatabaseURL
 }
+
+func AdminToken(flagValue string) string {
+	if flagValue != "" {
+		return flagValue
+	}
+	return os.Getenv("ARD_ADMIN_TOKEN")
+}

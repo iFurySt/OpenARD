@@ -6,6 +6,7 @@ import (
 
 type rootOptions struct {
 	databaseURL string
+	adminToken  string
 }
 
 func NewRootCommand() *cobra.Command {
@@ -27,6 +28,7 @@ func NewServerCommand() *cobra.Command {
 		},
 	}
 	addDatabaseFlag(command, &options)
+	addAdminTokenFlag(command, &options)
 	command.Flags().StringVar(&addr, "addr", ":8080", "HTTP listen address")
 	return command
 }
@@ -58,5 +60,14 @@ func addDatabaseFlag(command *cobra.Command, options *rootOptions) {
 		"database-url",
 		"",
 		"Postgres connection URL. Defaults to DATABASE_URL or local postgres.",
+	)
+}
+
+func addAdminTokenFlag(command *cobra.Command, options *rootOptions) {
+	command.Flags().StringVar(
+		&options.adminToken,
+		"admin-token",
+		"",
+		"Bearer token for protected admin API routes. Defaults to ARD_ADMIN_TOKEN.",
 	)
 }

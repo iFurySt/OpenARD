@@ -152,3 +152,94 @@ func TestRouterAgentsAndExploreWithPostgres(t *testing.T) {
 		t.Fatalf("expected type facet buckets: %#v", explored)
 	}
 }
+
+func TestRouterAdminAPIWithPostgres(t *testing.T) {
+	databaseURL := os.Getenv("ARD_TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("set ARD_TEST_DATABASE_URL to run Postgres integration tests")
+	}
+	ctx := context.Background()
+	registryStore, err := store.Open(databaseURL)
+	if err != nil {
+		t.Fatalf("open store: %v", err)
+	}
+	defer registryStore.Close()
+	if err := registryStore.AutoMigrate(); err != nil {
+		t.Fatalf("migrate store: %v", err)
+	}
+	if _, err := registryStore.DeleteEntry(ctx, "urn:air:example.com:server:admin-weather"); err != nil {
+		t.Fatalf("clean admin entry: %v", err)
+	}
+
+	publicRouter := NewRouter(registryStore)
+	publicRequest := httptest.NewRequest(http.MethodGet, "/admin/entries", nil)
+	publicResponse := httptest.NewRecorder()
+	publicRouter.ServeHTTP(publicResponse, publicRequest)
+	if publicResponse.Code != http.StatusNotFound {
+		t.Fatalf("expected admin routes to be absent without token, got %d", publicResponse.Code)
+	}
+
+	router := NewRouterWithOptions(registryStore, Options{AdminToken: "test-token"})
+	unauthorizedRequest := httptest.NewRequest(http.MethodGet, "/admin/entries", nil)
+	unauthorizedResponse := httptest.NewRecorder()
+	router.ServeHTTP(unauthorizedResponse, unauthorizedRequest)
+	if unauthorizedResponse.Code != http.StatusUnauthorized {
+		t.Fatalf("expected HTTP 401 without token, got %d", unauthorizedResponse.Code)
+	}
+
+	entry := ard.CatalogEntry{
+		Identifier:            "urn:air:example.com:server:admin-weather",
+		DisplayName:           "Admin Weather MCP",
+		Type:                  ard.TypeMCPServerCard,
+		URL:                   "https://example.com/mcp/admin-weather.json",
+		Description:           "Weather MCP server added through the admin API.",
+		RepresentativeQueries: []string{"what is the weather", "get an admin forecast"},
+	}
+	entryBody, _ := json.Marshal(entry)
+	createRequest := httptest.NewRequest(http.MethodPost, "/admin/entries", bytes.NewReader(entryBody))
+	createRequest.Header.Set("Authorization", "Bearer test-token")
+	createRequest.Header.Set("Content-Type", "application/json")
+	createResponse := httptest.NewRecorder()
+	router.ServeHTTP(createResponse, createRequest)
+	if createResponse.Code != http.StatusCreated {
+		t.Fatalf("expected create HTTP 201, got %d: %s", createResponse.Code, createResponse.Body.String())
+	}
+
+	listRequest := httptest.NewRequest(http.MethodGet, "/admin/entries?kind=mcp", nil)
+	listRequest.Header.Set("Authorization", "Bearer test-token")
+	listResponse := httptest.NewRecorder()
+	router.ServeHTTP(listResponse, listRequest)
+	if listResponse.Code != http.StatusOK {
+		t.Fatalf("expected list HTTP 200, got %d: %s", listResponse.Code, listResponse.Body.String())
+	}
+	var list ard.ListResponse
+	if err := json.Unmarshal(listResponse.Body.Bytes(), &list); err != nil {
+		t.Fatalf("decode list: %v", err)
+	}
+	if list.Total < 1 {
+		t.Fatalf("expected admin entry in list, got %#v", list)
+	}
+
+	exportRequest := httptest.NewRequest(http.MethodGet, "/admin/catalog", nil)
+	exportRequest.Header.Set("Authorization", "Bearer test-token")
+	exportResponse := httptest.NewRecorder()
+	router.ServeHTTP(exportResponse, exportRequest)
+	if exportResponse.Code != http.StatusOK {
+		t.Fatalf("expected export HTTP 200, got %d: %s", exportResponse.Code, exportResponse.Body.String())
+	}
+	var exported ard.Catalog
+	if err := json.Unmarshal(exportResponse.Body.Bytes(), &exported); err != nil {
+		t.Fatalf("decode export: %v", err)
+	}
+	if err := ard.ValidateCatalog(exported); err != nil {
+		t.Fatalf("exported admin catalog should validate: %v", err)
+	}
+
+	deleteRequest := httptest.NewRequest(http.MethodDelete, "/admin/entries/urn:air:example.com:server:admin-weather", nil)
+	deleteRequest.Header.Set("Authorization", "Bearer test-token")
+	deleteResponse := httptest.NewRecorder()
+	router.ServeHTTP(deleteResponse, deleteRequest)
+	if deleteResponse.Code != http.StatusNoContent {
+		t.Fatalf("expected delete HTTP 204, got %d: %s", deleteResponse.Code, deleteResponse.Body.String())
+	}
+}

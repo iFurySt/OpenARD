@@ -38,6 +38,9 @@ func TestCLICommandOmitsServe(t *testing.T) {
 	if _, _, err := command.Find([]string{"remove"}); err != nil {
 		t.Fatalf("expected ardctl remove command: %v", err)
 	}
+	if command.Flag("admin-token") != nil {
+		t.Fatal("ardctl should not expose server admin token flag")
+	}
 }
 
 func TestServerCommandRunsAtRoot(t *testing.T) {
@@ -47,6 +50,9 @@ func TestServerCommandRunsAtRoot(t *testing.T) {
 	}
 	if command.RunE == nil {
 		t.Fatal("ard-server should run the registry server at the root command")
+	}
+	if command.Flag("admin-token") == nil {
+		t.Fatal("ard-server should expose admin token flag")
 	}
 	if len(command.Commands()) != 0 {
 		t.Fatalf("ard-server should not expose management subcommands, got %d", len(command.Commands()))

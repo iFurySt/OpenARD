@@ -19,6 +19,7 @@ func newServeCommand(root *rootOptions) *cobra.Command {
 		},
 	}
 	command.Flags().StringVar(&addr, "addr", ":8080", "HTTP listen address")
+	addAdminTokenFlag(command, root)
 	return command
 }
 
@@ -32,7 +33,9 @@ func runServer(cmd *cobra.Command, root *rootOptions, addr string) error {
 		return err
 	}
 
-	router := httpapi.NewRouter(registryStore)
+	router := httpapi.NewRouterWithOptions(registryStore, httpapi.Options{
+		AdminToken: config.AdminToken(root.adminToken),
+	})
 	fmt.Fprintf(cmd.ErrOrStderr(), "listening on %s\n", addr)
 	return router.Run(addr)
 }
