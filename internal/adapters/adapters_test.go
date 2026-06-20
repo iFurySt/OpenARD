@@ -58,6 +58,36 @@ func TestLoadA2AAgentCardFromHTTP(t *testing.T) {
 	}
 }
 
+func TestLoadA2AAgentCardPinsSourceDigest(t *testing.T) {
+	source := testArtifactServer(t, filepath.Join("testdata", "a2a-agent-card.json"))
+	entry, err := LoadA2AAgentCard(
+		context.Background(),
+		source,
+		Options{Publisher: "example.com", PinSourceDigest: true},
+	)
+	if err != nil {
+		t.Fatalf("load A2A agent card: %v", err)
+	}
+	if entry.TrustManifest["identity"] != "https://example.com" {
+		t.Fatalf("unexpected trust identity: %#v", entry.TrustManifest)
+	}
+	sourceDigest, _ := entry.TrustManifest["sourceDigest"].(string)
+	if sourceDigest == "" {
+		t.Fatalf("expected sourceDigest: %#v", entry.TrustManifest)
+	}
+}
+
+func TestPinSourceDigestRequiresURL(t *testing.T) {
+	_, err := LoadMCPServerCard(
+		context.Background(),
+		filepath.Join("testdata", "mcp-server-card.json"),
+		Options{PinSourceDigest: true},
+	)
+	if err == nil {
+		t.Fatal("expected local source pinning to fail")
+	}
+}
+
 func TestLoadSkillFromLocalFileWithIdentifierOverride(t *testing.T) {
 	entry, err := LoadSkill(
 		context.Background(),

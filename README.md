@@ -27,6 +27,7 @@ ard-server --policy-file ./policy.json --admin-token "$ARD_ADMIN_TOKEN"
 ard add catalog https://example.com/.well-known/ai-catalog.json
 ardctl add catalog https://example.com/.well-known/ai-catalog.json
 ard add mcp https://example.com/mcp/server.json
+ard add mcp https://example.com/mcp/server.json --pin-source-digest
 ard add a2a https://example.com/.well-known/agent-card.json
 ard add skill https://example.com/skills/open-browser-use/SKILL.md
 ard add openapi https://example.com/openapi.json
@@ -41,6 +42,7 @@ ardctl admin review approve urn:air:example.com:server:weather --registry-url ht
 ardctl admin audit --registry-url https://registry.example.com --admin-token "$ARD_ADMIN_TOKEN"
 ard search "query observability logs" --kind mcp
 ard verify catalog https://example.com/.well-known/ai-catalog.json
+ard verify catalog ./ai-catalog.json --source-digests
 ```
 
 ## Try It
@@ -77,9 +79,10 @@ explore facets, catalog export, local listing, entry removal, and token-protecte
 API routes with an `ardctl admin` client. Admin flows can disable, reactivate, filter
 entries, apply ingestion policy, review pending entries, and inspect mutation audit
 events without exposing inactive resources through public discovery. Server deployments
-can use a single admin token or role-scoped admin tokens. The registry also exposes
-request correlation, JSON access logs, and Prometheus-style `/metrics`. It builds three
-entry points: `ard` for the combined toolkit, `ardctl` for CLI/client operations, and
+can use a single admin token or role-scoped admin tokens. URL artifacts can be pinned and
+verified with `trustManifest.sourceDigest`. The registry also exposes request
+correlation, JSON access logs, and Prometheus-style `/metrics`. It builds three entry
+points: `ard` for the combined toolkit, `ardctl` for CLI/client operations, and
 `ard-server` for the registry server. CI runs formatting checks, tests, builds, and
 Postgres integration tests.
 `make test-e2e` runs the real artifact onboarding flow with live MCP, Skill, OpenAPI,
@@ -96,6 +99,7 @@ See:
 - [Admin Authorization](docs/ADMIN_AUTH.md)
 - [Product Sense](docs/PRODUCT_SENSE.md)
 - [Policy](docs/POLICY.md)
+- [Trust Verification](docs/TRUST.md)
 - [ARD Spec Working Notes](docs/references/ard-spec-working-notes.md)
 
 ## License

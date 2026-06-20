@@ -34,6 +34,15 @@ Use this document to make secure defaults explicit and legible to agents.
 - Policy files should be versioned with the deployment configuration and reviewed like
   code.
 
+## Trust Verification
+
+- `--pin-source-digest` can add `trustManifest.sourceDigest` for URL artifacts.
+- `ard verify catalog --source-digests` fetches URL artifacts and verifies pinned
+  `sha256` source digests.
+- Source digest verification proves byte integrity for the fetched URL only. It does not
+  prove publisher identity, signature validity, runtime safety, or compliance status.
+- Detailed trust behavior is in `docs/TRUST.md`.
+
 ## Audit Events
 
 - Admin upsert, lifecycle status, and delete operations append persisted audit events.
@@ -62,7 +71,7 @@ Use this document to make secure defaults explicit and legible to agents.
 - No token rotation workflow yet.
 - No tamper-evident audit log yet.
 - No signed policy bundle or external policy engine yet.
-- No signature or trust manifest verification beyond schema-level validation yet.
+- No detached signature, DID, SPIFFE, certificate, or key-resolution verification yet.
 
 ## Scope
 

@@ -21,6 +21,7 @@ const (
 )
 
 var urnPattern = regexp.MustCompile(`^urn:air:([A-Za-z0-9.-]+)(?::([A-Za-z0-9._:-]+))?:([A-Za-z0-9._-]+)$`)
+var sha256DigestPattern = regexp.MustCompile(`^sha256:[a-fA-F0-9]{64}$`)
 
 type Catalog struct {
 	SpecVersion string         `json:"specVersion"`
@@ -201,6 +202,25 @@ func ValidateCatalogEntry(entry CatalogEntry) error {
 	}
 	if queries := len(entry.RepresentativeQueries); queries > 0 && (queries < 2 || queries > 5) {
 		return fmt.Errorf("representativeQueries must contain 2 to 5 items when present")
+	}
+	if err := validateTrustManifest(entry.TrustManifest); err != nil {
+		return err
+	}
+	return nil
+}
+
+func validateTrustManifest(trustManifest map[string]any) error {
+	if trustManifest == nil {
+		return nil
+	}
+	identity, ok := trustManifest["identity"].(string)
+	if !ok || strings.TrimSpace(identity) == "" {
+		return errors.New("trustManifest.identity is required when trustManifest is present")
+	}
+	if sourceDigest, ok := trustManifest["sourceDigest"].(string); ok && sourceDigest != "" {
+		if !sha256DigestPattern.MatchString(sourceDigest) {
+			return errors.New("trustManifest.sourceDigest must match sha256:<64 hex chars>")
+		}
 	}
 	return nil
 }

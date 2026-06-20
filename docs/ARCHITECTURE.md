@@ -46,8 +46,10 @@ Cobra, Gin, GORM, and Postgres.
 - Artifact onboarding: `ard add mcp`, `ard add a2a`, `ard add skill`, and
   `ard add openapi` translate real MCP server cards, A2A agent cards, Skill markdown
   files, and OpenAPI documents into ARD catalog entries.
-- Verification engine: initial schema-level checks cover `urn:air:`, required fields,
-  `url`/`data` exclusivity, URL syntax, and representative query count.
+- Verification engine: schema-level checks cover `urn:air:`, required fields,
+  `url`/`data` exclusivity, URL syntax, representative query count, and minimal
+  `trustManifest` structure. URL artifacts can be pinned and verified with
+  `trustManifest.sourceDigest`.
 
 ## Intended Repository Shape
 
@@ -103,7 +105,8 @@ boundary without changing HTTP contracts.
 2. The crawler fetches `/.well-known/ai-catalog.json` or a direct artifact URL.
 3. The adapter layer normalizes supported artifacts into ARD catalog entries.
 4. The verification layer validates schema, media type, `url`/`data` exclusivity,
-   domain-anchored `urn:air:` identifiers, publisher domains, and trust metadata.
+   domain-anchored `urn:air:` identifiers, publisher domains, trust metadata, and
+   optional URL source digests.
 5. The index layer stores normalized entries and searchable fields.
 6. `POST /search` accepts an ARD `SearchRequest` and returns a ranked `SearchResponse`.
 7. Clients fetch the selected artifact and execute it through its native protocol.
@@ -167,6 +170,8 @@ conformance tool over older reference implementations. In particular:
 - Treat OpenAPI artifact onboarding as an implementation extension using
   `application/openapi+json` until upstream ARD standardizes an OpenAPI discovery media
   type.
+- Treat `trustManifest.sourceDigest` as source artifact integrity metadata. It verifies
+  bytes fetched from the entry URL; it is not a signature or identity proof.
 - Keep `score` strictly as semantic relevance, not a trust or safety signal.
 - Support web ingestion of `ai-catalog.json` catalogs as a required registry capability.
 - Keep `/explore` local-only and optional; if unsupported, return `501`.

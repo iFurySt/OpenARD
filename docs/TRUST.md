@@ -1,0 +1,50 @@
+# Trust Verification
+
+`ard` currently implements an MVP trust verification path for artifact source integrity.
+
+## Source Digest Pinning
+
+Artifact add commands can pin a URL artifact digest into `trustManifest`:
+
+```sh
+ard add mcp https://example.com/mcp/server.json --pin-source-digest
+ardctl admin add mcp https://example.com/mcp/server.json \
+  --pin-source-digest \
+  --registry-url https://registry.example.com \
+  --admin-token "$ARD_ADMIN_TOKEN"
+```
+
+Pinning writes:
+
+```json
+{
+  "trustManifest": {
+    "identity": "https://example.com",
+    "sourceDigest": "sha256:<hex>"
+  }
+}
+```
+
+`--pin-source-digest` requires a URL source. Local files are embedded as `data`, so the
+original source bytes are not available from an exported catalog for later URL integrity
+checks.
+
+## Verification
+
+Use:
+
+```sh
+ard verify catalog ./ai-catalog.json --source-digests
+```
+
+When `--source-digests` is enabled, `ard` fetches each URL entry that has
+`trustManifest.sourceDigest`, computes `sha256`, and fails if the digest does not match.
+
+## Current Scope
+
+- Implemented: `trustManifest.identity` presence validation.
+- Implemented: `trustManifest.sourceDigest` format validation.
+- Implemented: URL artifact source digest verification.
+- Not implemented yet: detached JWS signature verification.
+- Not implemented yet: DID, SPIFFE, certificate, or key resolution.
+- Not implemented yet: tamper-evident audit trails.

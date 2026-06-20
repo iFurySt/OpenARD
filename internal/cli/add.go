@@ -98,5 +98,6 @@ func newAddArtifactCommand(root *rootOptions, kind string, short string, load ar
 	}
 	command.Flags().StringVar(&options.Identifier, "identifier", "", "Override generated urn:air identifier")
 	command.Flags().StringVar(&options.Publisher, "publisher", "", "Override generated publisher domain")
+	command.Flags().BoolVar(&options.PinSourceDigest, "pin-source-digest", false, "Add trustManifest.sourceDigest for the source artifact")
 	return command
 }

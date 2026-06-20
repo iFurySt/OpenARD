@@ -135,8 +135,9 @@ grep -q "admin token is required" /tmp/ard-e2e-no-token.log
 bin/ardctl admin add catalog ./internal/catalog/testdata/acme-ai-catalog.json \
   --registry-url "${registry_url}" \
   --admin-token "${admin_token}"
-bin/ardctl admin add mcp "${mcp_card_file}" \
+bin/ardctl admin add mcp "${mcp_card_url}" \
   --publisher raw.githubusercontent.com \
+  --pin-source-digest \
   --registry-url "${registry_url}" \
   --admin-token "${admin_token}"
 bin/ardctl admin add skill "${skill_file}" \
@@ -172,6 +173,9 @@ grep -q "open-browser-use" "${export_file}"
 grep -q "Swagger Petstore - OpenAPI 3.0" "${export_file}"
 grep -q "Hello World Agent" "${export_file}"
 bin/ard verify catalog "${export_file}" --json | grep -q '"valid": true'
+bin/ard verify catalog "${export_file}" --source-digests --json >/tmp/ard-e2e-verify-digests.json
+grep -q '"sourceDigestsVerified": 1' /tmp/ard-e2e-verify-digests.json
+grep -q '"verified": true' /tmp/ard-e2e-verify-digests.json
 
 if [ -x "${conformance_bin}" ]; then
   "${conformance_bin}" manifest "${export_file}"

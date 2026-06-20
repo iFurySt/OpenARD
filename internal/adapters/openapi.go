@@ -41,6 +41,9 @@ func LoadOpenAPI(ctx context.Context, source string, options Options) (ard.Catal
 	if err != nil {
 		return ard.CatalogEntry{}, err
 	}
+	if err := requireURLForSourceDigest(source, artifact, options); err != nil {
+		return ard.CatalogEntry{}, err
+	}
 
 	var raw map[string]any
 	if err := yaml.Unmarshal(artifact.Data, &raw); err != nil {
@@ -85,6 +88,9 @@ func LoadOpenAPI(ctx context.Context, source string, options Options) (ard.Catal
 		entry.URL = source
 	} else {
 		entry.Data = raw
+	}
+	if options.PinSourceDigest {
+		applySourceDigestTrust(&entry, artifact.SourceDigest)
 	}
 	if err := ard.ValidateCatalogEntry(entry); err != nil {
 		return ard.CatalogEntry{}, err

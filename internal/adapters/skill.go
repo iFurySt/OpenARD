@@ -13,6 +13,9 @@ func LoadSkill(ctx context.Context, source string, options Options) (ard.Catalog
 	if err != nil {
 		return ard.CatalogEntry{}, err
 	}
+	if err := requireURLForSourceDigest(source, artifact, options); err != nil {
+		return ard.CatalogEntry{}, err
+	}
 	content := string(artifact.Data)
 	frontmatter := parseFrontmatter(content)
 
@@ -44,6 +47,9 @@ func LoadSkill(ctx context.Context, source string, options Options) (ard.Catalog
 			"description": description,
 			"content":     content,
 		}
+	}
+	if options.PinSourceDigest {
+		applySourceDigestTrust(&entry, artifact.SourceDigest)
 	}
 	if err := ard.ValidateCatalogEntry(entry); err != nil {
 		return ard.CatalogEntry{}, err

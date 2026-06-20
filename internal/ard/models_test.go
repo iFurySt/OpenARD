@@ -54,6 +54,29 @@ func TestValidateCatalogEntryEnforcesValueOrReference(t *testing.T) {
 	}
 }
 
+func TestValidateCatalogEntryTrustManifest(t *testing.T) {
+	entry := CatalogEntry{
+		Identifier:  "urn:air:acme.com:server:weather",
+		DisplayName: "Weather Data Node",
+		Type:        TypeMCPServerCard,
+		URL:         "https://api.acme.com/mcp/weather.json",
+		TrustManifest: map[string]any{
+			"sourceDigest": "sha256:abc",
+		},
+	}
+	if err := ValidateCatalogEntry(entry); err == nil {
+		t.Fatal("expected trustManifest without identity to be rejected")
+	}
+	entry.TrustManifest["identity"] = "https://acme.com"
+	if err := ValidateCatalogEntry(entry); err == nil {
+		t.Fatal("expected invalid sourceDigest to be rejected")
+	}
+	entry.TrustManifest["sourceDigest"] = "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+	if err := ValidateCatalogEntry(entry); err != nil {
+		t.Fatalf("expected valid trustManifest: %v", err)
+	}
+}
+
 func TestSearchFilterAcceptsScalarAndArray(t *testing.T) {
 	var request SearchRequest
 	body := []byte(`{

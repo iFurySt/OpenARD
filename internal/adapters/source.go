@@ -2,6 +2,8 @@ package adapters
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"net"
@@ -11,40 +13,63 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/ifuryst/ard/internal/ard"
 )
 
 const maxArtifactBytes = 4 << 20
 
 type Options struct {
-	Identifier string
-	Publisher  string
+	Identifier      string
+	Publisher       string
+	PinSourceDigest bool
 }
 
 type artifactSource struct {
-	Data  []byte
-	IsURL bool
+	Data         []byte
+	IsURL        bool
+	SourceDigest string
 }
 
 func readSource(ctx context.Context, source string, accept string) (artifactSource, error) {
 	if isHTTPURL(source) {
 		client := http.Client{Timeout: 20 * time.Second}
-		request, err := http.NewRequestWithContext(ctx, http.MethodGet, source, nil)
-		if err != nil {
-			return artifactSource{}, err
-		}
-		request.Header.Set("Accept", accept)
-		request.Header.Set("User-Agent", "ard/0.1")
+		var lastErr error
+		for attempt := 0; attempt < 3; attempt++ {
+			request, err := http.NewRequestWithContext(ctx, http.MethodGet, source, nil)
+			if err != nil {
+				return artifactSource{}, err
+			}
+			request.Header.Set("Accept", accept)
+			request.Header.Set("User-Agent", "ard/0.1")
 
-		response, err := client.Do(request)
-		if err != nil {
-			return artifactSource{}, err
+			response, err := client.Do(request)
+			if err != nil {
+				lastErr = err
+				time.Sleep(time.Duration(attempt+1) * time.Second)
+				continue
+			}
+			data, readErr := func() ([]byte, error) {
+				defer response.Body.Close()
+				if response.StatusCode < 200 || response.StatusCode > 299 {
+					return nil, fmt.Errorf("artifact request failed with HTTP %d", response.StatusCode)
+				}
+				return readLimited(response.Body)
+			}()
+			if readErr != nil {
+				lastErr = readErr
+				if response.StatusCode >= 400 && response.StatusCode < 500 {
+					return artifactSource{}, readErr
+				}
+				time.Sleep(time.Duration(attempt+1) * time.Second)
+				continue
+			}
+			return artifactSource{Data: data, IsURL: true, SourceDigest: sha256Digest(data)}, nil
 		}
-		defer response.Body.Close()
-		if response.StatusCode < 200 || response.StatusCode > 299 {
-			return artifactSource{}, fmt.Errorf("artifact request failed with HTTP %d", response.StatusCode)
+		if lastErr == nil {
+			lastErr = fmt.Errorf("artifact request failed")
 		}
-		data, err := readLimited(response.Body)
-		return artifactSource{Data: data, IsURL: true}, err
+		return artifactSource{}, lastErr
 	}
 
 	file, err := os.Open(source)
@@ -53,7 +78,14 @@ func readSource(ctx context.Context, source string, accept string) (artifactSour
 	}
 	defer file.Close()
 	data, err := readLimited(file)
-	return artifactSource{Data: data}, err
+	return artifactSource{Data: data, SourceDigest: sha256Digest(data)}, err
+}
+
+func requireURLForSourceDigest(source string, artifact artifactSource, options Options) error {
+	if options.PinSourceDigest && !artifact.IsURL {
+		return fmt.Errorf("--pin-source-digest requires URL source, got %s", source)
+	}
+	return nil
 }
 
 func readLimited(reader io.Reader) ([]byte, error) {
@@ -85,6 +117,24 @@ func identifierFor(source string, namespace string, displayName string, options 
 		name = namespace
 	}
 	return fmt.Sprintf("urn:air:%s:%s:%s", publisher, namespace, name), nil
+}
+
+func applySourceDigestTrust(entry *ard.CatalogEntry, digest string) {
+	if digest == "" {
+		return
+	}
+	if entry.TrustManifest == nil {
+		entry.TrustManifest = map[string]any{}
+	}
+	if _, ok := entry.TrustManifest["identity"]; !ok {
+		entry.TrustManifest["identity"] = "https://" + ard.Publisher(entry.Identifier)
+	}
+	entry.TrustManifest["sourceDigest"] = digest
+}
+
+func sha256Digest(data []byte) string {
+	sum := sha256.Sum256(data)
+	return "sha256:" + hex.EncodeToString(sum[:])
 }
 
 func publisherFromSource(source string) string {

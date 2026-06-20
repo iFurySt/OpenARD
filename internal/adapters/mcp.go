@@ -35,6 +35,9 @@ func LoadMCPServerCard(ctx context.Context, source string, options Options) (ard
 	if err != nil {
 		return ard.CatalogEntry{}, err
 	}
+	if err := requireURLForSourceDigest(source, artifact, options); err != nil {
+		return ard.CatalogEntry{}, err
+	}
 
 	var raw map[string]any
 	if err := json.Unmarshal(artifact.Data, &raw); err != nil {
@@ -74,6 +77,9 @@ func LoadMCPServerCard(ctx context.Context, source string, options Options) (ard
 		entry.URL = source
 	} else {
 		entry.Data = raw
+	}
+	if options.PinSourceDigest {
+		applySourceDigestTrust(&entry, artifact.SourceDigest)
 	}
 	if err := ard.ValidateCatalogEntry(entry); err != nil {
 		return ard.CatalogEntry{}, err
