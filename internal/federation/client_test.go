@@ -7,11 +7,13 @@ import (
 	"testing"
 
 	"github.com/ifuryst/ard/internal/ard"
+	"github.com/ifuryst/ard/internal/tracecontext"
 )
 
 func TestClientSearchForcesNonRecursiveFederation(t *testing.T) {
 	var seenRequest ard.SearchRequest
 	seenRequestID := ""
+	seenTraceparent := ""
 	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
 		if request.URL.Path != "/search" {
 			http.Error(response, "unexpected path", http.StatusNotFound)
@@ -22,6 +24,7 @@ func TestClientSearchForcesNonRecursiveFederation(t *testing.T) {
 			return
 		}
 		seenRequestID = request.Header.Get("X-Request-ID")
+		seenTraceparent = request.Header.Get(tracecontext.Header)
 		if err := json.NewDecoder(request.Body).Decode(&seenRequest); err != nil {
 			http.Error(response, err.Error(), http.StatusBadRequest)
 			return
@@ -42,7 +45,8 @@ func TestClientSearchForcesNonRecursiveFederation(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	ctx := WithRequestID(t.Context(), "federation-unit-request")
+	ctx, _ := tracecontext.Start(t.Context(), "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01")
+	ctx = WithRequestID(ctx, "federation-unit-request")
 	results := NewClient().Search(ctx, []ard.CatalogEntry{
 		{
 			Identifier: "urn:air:upstream.example.com:registry:public",
@@ -60,6 +64,10 @@ func TestClientSearchForcesNonRecursiveFederation(t *testing.T) {
 	}
 	if seenRequestID != "federation-unit-request" {
 		t.Fatalf("expected request ID propagation, got %q", seenRequestID)
+	}
+	trace, ok := tracecontext.Parse(seenTraceparent)
+	if !ok || trace.TraceID != "4bf92f3577b34da6a3ce929d0e0e4736" {
+		t.Fatalf("expected traceparent propagation, got %q", seenTraceparent)
 	}
 	if len(results) != 1 {
 		t.Fatalf("expected one upstream result, got %#v", results)

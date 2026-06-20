@@ -10,6 +10,7 @@ import (
 
 	"github.com/ifuryst/ard/internal/ard"
 	"github.com/ifuryst/ard/internal/requestid"
+	"github.com/ifuryst/ard/internal/tracecontext"
 )
 
 func TestLoadMCPServerCardFromLocalFile(t *testing.T) {
@@ -77,6 +78,29 @@ func TestLoadA2AAgentCardFromHTTPPropagatesRequestID(t *testing.T) {
 	}
 	if seenRequestID != "artifact-loader-request" {
 		t.Fatalf("expected request ID propagation, got %q", seenRequestID)
+	}
+}
+
+func TestLoadA2AAgentCardFromHTTPPropagatesTraceparent(t *testing.T) {
+	seenTraceparent := ""
+	source := testArtifactServerWithHandler(t, filepath.Join("testdata", "a2a-agent-card.json"), func(request *http.Request) {
+		seenTraceparent = request.Header.Get(tracecontext.Header)
+	})
+	ctx, _ := tracecontext.Start(context.Background(), "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01")
+	entry, err := LoadA2AAgentCard(
+		ctx,
+		source,
+		Options{Publisher: "example.com"},
+	)
+	if err != nil {
+		t.Fatalf("load A2A agent card: %v", err)
+	}
+	if entry.Identifier != "urn:air:example.com:agent:hello-world-agent" {
+		t.Fatalf("unexpected identifier: %s", entry.Identifier)
+	}
+	trace, ok := tracecontext.Parse(seenTraceparent)
+	if !ok || trace.TraceID != "4bf92f3577b34da6a3ce929d0e0e4736" {
+		t.Fatalf("expected traceparent propagation, got %q", seenTraceparent)
 	}
 }
 

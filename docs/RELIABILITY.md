@@ -22,11 +22,21 @@ Define the operational bar for the repository here.
   `--request-id` or `ARD_REQUEST_ID`, allowing a remote artifact fetch and the following
   admin API mutation to share one correlation ID.
 
+## Trace Context
+
+- Every HTTP response includes W3C `traceparent`.
+- If a request supplies a valid `traceparent`, the registry preserves the incoming trace
+  ID, creates a local span ID, and returns that service span.
+- If absent or invalid, the registry generates a new trace context.
+- JSON access logs include `traceId` and `spanId`.
+- Server-side federation, outbound catalog/artifact fetches, source digest verification,
+  and `ardctl admin` requests propagate `traceparent` when their context carries one.
+
 ## Logging
 
 - The registry emits one JSON access log event per HTTP request.
-- Access log events include timestamp, level, event name, request ID, method, path,
-  status, latency, and client IP.
+- Access log events include timestamp, level, event name, request ID, trace ID, span ID,
+  method, path, status, latency, and client IP.
 - Access logs must not include bearer tokens or request bodies.
 
 ## Metrics
@@ -54,5 +64,5 @@ Define the operational bar for the repository here.
 
 ## Current Gaps
 
-- Tracing is not implemented yet.
+- Trace export, sampling policy, and backend integration are not implemented yet.
 - There is no documented dashboard or incident response workflow yet.

@@ -12,6 +12,7 @@ import (
 
 	"github.com/ifuryst/ard/internal/adapters"
 	"github.com/ifuryst/ard/internal/requestid"
+	"github.com/ifuryst/ard/internal/tracecontext"
 )
 
 func TestAdminRequestRequiresToken(t *testing.T) {
@@ -79,14 +80,17 @@ func TestAdminRequestSendsBearerToken(t *testing.T) {
 
 func TestAdminRequestPropagatesRequestID(t *testing.T) {
 	seenRequestID := ""
+	seenTraceparent := ""
 	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
 		seenRequestID = request.Header.Get(requestid.Header)
+		seenTraceparent = request.Header.Get(tracecontext.Header)
 		response.Header().Set("Content-Type", "application/json")
 		_, _ = response.Write([]byte(`{"ok":true}`))
 	}))
 	defer server.Close()
 
-	ctx := requestid.With(context.Background(), "admin-request-test")
+	ctx, _ := tracecontext.Start(context.Background(), "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01")
+	ctx = requestid.With(ctx, "admin-request-test")
 	if _, err := adminRequest(ctx, adminOptions{
 		registryURL: server.URL,
 		adminToken:  "test-token",
@@ -96,6 +100,10 @@ func TestAdminRequestPropagatesRequestID(t *testing.T) {
 	if seenRequestID != "admin-request-test" {
 		t.Fatalf("expected request ID propagation, got %q", seenRequestID)
 	}
+	trace, ok := tracecontext.Parse(seenTraceparent)
+	if !ok || trace.TraceID != "4bf92f3577b34da6a3ce929d0e0e4736" {
+		t.Fatalf("expected traceparent propagation, got %q", seenTraceparent)
+	}
 }
 
 func TestAdminAddRemoteArtifactUsesOneRequestID(t *testing.T) {
@@ -104,19 +112,23 @@ func TestAdminAddRemoteArtifactUsesOneRequestID(t *testing.T) {
 		t.Fatalf("read test artifact: %v", err)
 	}
 	artifactRequestID := ""
+	artifactTraceparent := ""
 	artifactServer := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
 		artifactRequestID = request.Header.Get(requestid.Header)
+		artifactTraceparent = request.Header.Get(tracecontext.Header)
 		response.Header().Set("Content-Type", "application/json")
 		_, _ = response.Write(artifactData)
 	}))
 	defer artifactServer.Close()
 
 	adminRequestID := ""
+	adminTraceparent := ""
 	adminServer := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
 		if request.URL.Path != "/admin/entries" {
 			t.Fatalf("unexpected path: %s", request.URL.Path)
 		}
 		adminRequestID = request.Header.Get(requestid.Header)
+		adminTraceparent = request.Header.Get(tracecontext.Header)
 		if got := request.Header.Get("Authorization"); got != "Bearer test-token" {
 			t.Fatalf("unexpected authorization header: %s", got)
 		}
@@ -142,6 +154,12 @@ func TestAdminAddRemoteArtifactUsesOneRequestID(t *testing.T) {
 	}
 	if adminRequestID != "admin-add-artifact-test" {
 		t.Fatalf("expected admin request ID propagation, got %q", adminRequestID)
+	}
+	if artifactTraceparent == "" || artifactTraceparent != adminTraceparent {
+		t.Fatalf("expected one traceparent for artifact and admin requests, got artifact=%q admin=%q", artifactTraceparent, adminTraceparent)
+	}
+	if _, ok := tracecontext.Parse(artifactTraceparent); !ok {
+		t.Fatalf("expected valid traceparent, got %q", artifactTraceparent)
 	}
 	if got := output.String(); !strings.Contains(got, "remote imported") {
 		t.Fatalf("unexpected output: %s", got)

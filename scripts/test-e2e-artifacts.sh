@@ -113,8 +113,9 @@ class Handler(BaseHTTPRequestHandler):
         if length:
             self.rfile.read(length)
         request_id = self.headers.get("x-request-id", "")
+        traceparent = self.headers.get("traceparent", "")
         if request_id:
-            print(json.dumps({"event": "upstream_request", "requestId": request_id}), flush=True)
+            print(json.dumps({"event": "upstream_request", "requestId": request_id, "traceparent": traceparent}), flush=True)
         payload = {
             "results": [
                 {
@@ -152,8 +153,9 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 class Handler(SimpleHTTPRequestHandler):
     def do_GET(self):
         request_id = self.headers.get("x-request-id", "")
+        traceparent = self.headers.get("traceparent", "")
         if request_id:
-            print(json.dumps({"event": "fixture_request", "requestId": request_id, "path": self.path}), flush=True)
+            print(json.dumps({"event": "fixture_request", "requestId": request_id, "traceparent": traceparent, "path": self.path}), flush=True)
         return super().do_GET()
 
     def log_message(self, format, *args):
@@ -256,6 +258,7 @@ bin/ardctl admin add a2a "http://127.0.0.1:${fixture_port}/a2a-agent-card.json" 
   --admin-token "publisher-token" \
   --request-id "ard-e2e-artifact-fetch"
 grep -q '"requestId": "ard-e2e-artifact-fetch"' /tmp/ard-e2e-fixtures.log
+grep -q '"traceparent": "00-' /tmp/ard-e2e-fixtures.log
 
 bin/ardctl admin list --kind mcp --registry-url "${registry_url}" --admin-token "${admin_token}" --json >/tmp/ard-e2e-list-mcp.json
 grep -q "Agentmemory MCP" /tmp/ard-e2e-list-mcp.json
@@ -310,10 +313,12 @@ grep -q "Federated Weather MCP" /tmp/ard-e2e-auto-search.json
 curl -fsS \
   -H "Content-Type: application/json" \
   -H "X-Request-ID: ard-e2e-auto-federation" \
+  -H "traceparent: 00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01" \
   -d '{"query":{"text":"federated","filter":{"type":["application/mcp-server-card+json"]}},"federation":"auto","pageSize":10}' \
   "${registry_url}/search" >/tmp/ard-e2e-auto-correlation.json
 grep -q "Federated Weather MCP" /tmp/ard-e2e-auto-correlation.json
 grep -q '"requestId": "ard-e2e-auto-federation"' /tmp/ard-e2e-upstream.log
+grep -q '"traceparent": "00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-' /tmp/ard-e2e-upstream.log
 bin/ardctl search browser --registry-url "${registry_url}" --kind skill --json | grep -q "open-browser-use"
 bin/ardctl search pet --registry-url "${registry_url}" --kind openapi --json | grep -q "Swagger Petstore - OpenAPI 3.0"
 bin/ardctl search hello --registry-url "${registry_url}" --kind a2a --json | grep -q "Hello World Agent"

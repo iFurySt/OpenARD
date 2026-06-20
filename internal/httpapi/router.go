@@ -49,7 +49,7 @@ func NewRouterWithOptions(store *store.Store, options Options) *gin.Engine {
 		metricsCollector: newMetricsCollector(),
 	}
 	router := gin.New()
-	router.Use(requestIDMiddleware(), metricsMiddleware(server.metricsCollector), jsonAccessLogMiddleware(), gin.Recovery())
+	router.Use(requestIDMiddleware(), traceContextMiddleware(), metricsMiddleware(server.metricsCollector), jsonAccessLogMiddleware(), gin.Recovery())
 
 	router.GET("/health", server.health)
 	router.GET("/metrics", server.metrics)

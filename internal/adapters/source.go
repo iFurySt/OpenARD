@@ -16,6 +16,7 @@ import (
 
 	"github.com/ifuryst/ard/internal/ard"
 	"github.com/ifuryst/ard/internal/requestid"
+	"github.com/ifuryst/ard/internal/tracecontext"
 )
 
 const maxArtifactBytes = 4 << 20
@@ -44,6 +45,7 @@ func readSource(ctx context.Context, source string, accept string) (artifactSour
 			request.Header.Set("Accept", accept)
 			request.Header.Set("User-Agent", "ard/0.1")
 			requestid.SetHeader(request.Header, ctx)
+			tracecontext.SetHeader(request.Header, ctx)
 
 			response, err := client.Do(request)
 			if err != nil {

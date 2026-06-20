@@ -13,6 +13,7 @@ import (
 
 	"github.com/ifuryst/ard/internal/ard"
 	"github.com/ifuryst/ard/internal/requestid"
+	"github.com/ifuryst/ard/internal/tracecontext"
 )
 
 const MaxUpstreamRegistries = 3
@@ -64,6 +65,7 @@ func (client Client) searchOne(ctx context.Context, referral ard.CatalogEntry, r
 	httpRequest.Header.Set("Accept", "application/json")
 	httpRequest.Header.Set("User-Agent", "ard/0.1")
 	requestid.SetHeader(httpRequest.Header, ctx)
+	tracecontext.SetHeader(httpRequest.Header, ctx)
 
 	response, err := client.httpClient.Do(httpRequest)
 	if err != nil {

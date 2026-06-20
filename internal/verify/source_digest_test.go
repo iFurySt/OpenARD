@@ -9,6 +9,7 @@ import (
 
 	"github.com/ifuryst/ard/internal/ard"
 	"github.com/ifuryst/ard/internal/requestid"
+	"github.com/ifuryst/ard/internal/tracecontext"
 )
 
 func TestVerifySourceDigests(t *testing.T) {
@@ -68,6 +69,39 @@ func TestVerifySourceDigestsPropagatesRequestID(t *testing.T) {
 	}
 	if seenRequestID != "verify-source-request" {
 		t.Fatalf("expected request ID propagation, got %q", seenRequestID)
+	}
+}
+
+func TestVerifySourceDigestsPropagatesTraceparent(t *testing.T) {
+	seenTraceparent := ""
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		seenTraceparent = request.Header.Get(tracecontext.Header)
+		_, _ = response.Write([]byte("artifact"))
+	}))
+	t.Cleanup(server.Close)
+
+	ctx, _ := tracecontext.Start(context.Background(), "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01")
+	_, err := VerifySourceDigests(ctx, ard.Catalog{
+		SpecVersion: "1.0",
+		Entries: []ard.CatalogEntry{
+			{
+				Identifier:  "urn:air:example.com:agent:test",
+				DisplayName: "Test Agent",
+				Type:        ard.TypeA2AAgentCard,
+				URL:         server.URL,
+				TrustManifest: map[string]any{
+					"identity":     "https://example.com",
+					"sourceDigest": "sha256:c7c5c1d70c5dec4416ab6158afd0b223ef40c29b1dc1f97ed9428b94d4cadb1c",
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("verify source digest: %v", err)
+	}
+	trace, ok := tracecontext.Parse(seenTraceparent)
+	if !ok || trace.TraceID != "4bf92f3577b34da6a3ce929d0e0e4736" {
+		t.Fatalf("expected traceparent propagation, got %q", seenTraceparent)
 	}
 }
 

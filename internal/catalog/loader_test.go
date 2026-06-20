@@ -10,6 +10,7 @@ import (
 
 	"github.com/ifuryst/ard/internal/ard"
 	"github.com/ifuryst/ard/internal/requestid"
+	"github.com/ifuryst/ard/internal/tracecontext"
 )
 
 func TestLoadLocalCatalog(t *testing.T) {
@@ -67,6 +68,29 @@ func TestLoadHTTPCatalogPropagatesRequestID(t *testing.T) {
 	}
 	if seenRequestID != "catalog-loader-request" {
 		t.Fatalf("expected request ID propagation, got %q", seenRequestID)
+	}
+}
+
+func TestLoadHTTPCatalogPropagatesTraceparent(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join("testdata", "acme-ai-catalog.json"))
+	if err != nil {
+		t.Fatalf("read test catalog: %v", err)
+	}
+	seenTraceparent := ""
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		seenTraceparent = request.Header.Get(tracecontext.Header)
+		response.Header().Set("Content-Type", "application/json")
+		_, _ = response.Write(data)
+	}))
+	defer server.Close()
+
+	ctx, _ := tracecontext.Start(context.Background(), "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01")
+	if _, err := Load(ctx, server.URL); err != nil {
+		t.Fatalf("load HTTP catalog: %v", err)
+	}
+	trace, ok := tracecontext.Parse(seenTraceparent)
+	if !ok || trace.TraceID != "4bf92f3577b34da6a3ce929d0e0e4736" {
+		t.Fatalf("expected traceparent propagation, got %q", seenTraceparent)
 	}
 }
 

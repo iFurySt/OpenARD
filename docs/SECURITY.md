@@ -59,11 +59,18 @@ Use this document to make secure defaults explicit and legible to agents.
 ## Request Logging
 
 - HTTP responses include `X-Request-ID`.
-- JSON access logs include request ID, method, path, status, latency, and client IP.
+- HTTP responses include W3C `traceparent`.
+- JSON access logs include request ID, trace ID, span ID, method, path, status, latency,
+  and client IP.
 - Outbound catalog/artifact fetches and source digest verification forward
   `X-Request-ID` for correlation when present in context.
+- Outbound federation, catalog/artifact fetches, source digest verification, and admin
+  client requests forward `traceparent` for trace context propagation when present in
+  context.
 - `ardctl admin --request-id` and `ARD_REQUEST_ID` set the correlation ID for an admin
   operation. If neither is set, `ardctl admin` generates one.
+- Trace IDs and span IDs are correlation metadata, not authentication or authorization
+  material. Do not use them as trust signals.
 - Access logs must not include admin bearer tokens or request bodies.
 
 ## Metrics

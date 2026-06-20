@@ -17,6 +17,7 @@ import (
 	"github.com/ifuryst/ard/internal/catalog"
 	"github.com/ifuryst/ard/internal/config"
 	"github.com/ifuryst/ard/internal/requestid"
+	"github.com/ifuryst/ard/internal/tracecontext"
 	"github.com/spf13/cobra"
 )
 
@@ -446,9 +447,11 @@ type storeAuditEvent struct {
 
 func adminOperationContext(ctx context.Context, options adminOptions) context.Context {
 	if options.requestID != "" {
-		return requestid.With(ctx, options.requestID)
+		ctx = requestid.With(ctx, options.requestID)
+	} else {
+		ctx, _ = requestid.Ensure(ctx)
 	}
-	ctx, _ = requestid.Ensure(ctx)
+	ctx, _ = tracecontext.Ensure(ctx)
 	return ctx
 }
 
@@ -466,6 +469,7 @@ func adminRequest(ctx context.Context, options adminOptions, method string, path
 	request.Header.Set("Accept", "application/json")
 	request.Header.Set("User-Agent", "ardctl/0.1")
 	requestid.SetHeader(request.Header, ctx)
+	tracecontext.SetHeader(request.Header, ctx)
 	if payload != nil {
 		request.Header.Set("Content-Type", "application/json")
 	}
