@@ -34,6 +34,7 @@ ard add openapi https://example.com/openapi.json
 ard crawl
 ardctl list --kind mcp
 ardctl list --filter "publisherId = 'github.com'" --order-by "displayName DESC"
+ardctl browse --registry-url https://registry.example.com --filter "publisherId = 'github.com'" --json
 ardctl remove urn:air:example.com:server:weather --yes
 ardctl export catalog -o ai-catalog.json
 ardctl admin list --registry-url https://registry.example.com --admin-token "$ARD_ADMIN_TOKEN"
@@ -74,6 +75,7 @@ bin/ardctl --database-url "$DATABASE_URL" export catalog -o ai-catalog.json
 bin/ard-server --database-url "$DATABASE_URL" --admin-token "$ARD_ADMIN_TOKEN"
 
 # terminal 2
+bin/ardctl browse --registry-url http://127.0.0.1:8080 --filter "type = 'application/mcp-server-card+json'" --json
 bin/ardctl search "weather forecast" --kind mcp --json
 bin/ardctl admin list --admin-token "$ARD_ADMIN_TOKEN"
 ```
@@ -81,9 +83,10 @@ bin/ardctl admin list --admin-token "$ARD_ADMIN_TOKEN"
 ## Status
 
 This repository is in early implementation. Current milestones include a Go CLI,
-Gin-based registry server, GORM/Postgres persistence, catalog import, well-known catalog
-crawl, MCP/A2A/Skill/OpenAPI artifact onboarding, catalog verification, ARD search, browse, and
-explore facets, catalog export, filtered local listing, entry removal, and token-protected admin
+Gin-based registry server, GORM/Postgres persistence, catalog import, well-known
+catalog crawl, MCP/A2A/Skill/OpenAPI artifact onboarding, catalog verification, ARD
+search, browse, and explore facets, catalog export, filtered local listing, remote
+public browsing, entry removal, and token-protected admin
 API routes with an `ardctl admin` client. Admin flows can disable, reactivate, filter
 entries, apply ingestion policy, review pending entries with decision reasons, and
 inspect mutation audit events without exposing inactive resources through public

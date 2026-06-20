@@ -8,8 +8,8 @@ Cobra, Gin, GORM, and Postgres.
 - Registry server: self-hosted ARD registry exposing discovery, search, health, and
   catalog endpoints through Gin, plus optional token-protected admin routes.
 - CLI: Cobra operational entry point for `serve`, `add catalog`, `add mcp`, `add a2a`,
-  `add skill`, `add openapi`, `admin`, `crawl`, `export catalog`, `list`, `remove`,
-  `verify catalog`, and `search` today.
+  `add skill`, `add openapi`, `admin`, `browse`, `crawl`, `export catalog`, `list`,
+  `remove`, `verify catalog`, and `search` today.
 - Entrypoints: `cmd/ard` ships the combined toolkit, `cmd/ardctl` ships client and
   management operations without server startup, and `cmd/ard-server` ships a dedicated
   registry server binary.
@@ -26,7 +26,8 @@ Cobra, Gin, GORM, and Postgres.
   return opaque offset page tokens when additional local results are available.
 - Browse flow: `GET /agents` validates public query parameters and supports deterministic
   filtering plus whitelisted ordering instead of ignoring malformed pagination or browse
-  options.
+  options. `ardctl browse` calls this public endpoint without admin credentials and
+  exposes filter, order, limit, and page-token flags for remote registry inventory.
 - Federation referrals: `POST /search` supports `federation=referrals` by returning
   active `application/ai-registry+json` entries in `SearchResponse.referrals` for
   client-followed federation.
@@ -207,12 +208,13 @@ boundary without changing HTTP contracts.
   is configured. Implemented, including entry lifecycle status management and paginated
   audit event listing plus audit hash-chain verification.
 - CLI equivalents: `serve`, `add catalog`, `add mcp`, `add a2a`, `add skill`,
-  `add openapi`, `crawl`, `admin`, `export catalog`, `list`, `remove`, `verify catalog`,
-  and `search` are implemented. `ardctl list --filter` and `--order-by` reuse the same
-  deterministic browse parser as public `/agents`. `ardctl admin status` manages remote
-  entry lifecycle state, `ardctl admin review --reason` handles pending review decisions
-  with optional audit reasons, and `ardctl admin audit` lists and verifies admin mutation
-  events.
+  `add openapi`, `crawl`, `admin`, `browse`, `export catalog`, `list`, `remove`,
+  `verify catalog`, and `search` are implemented. `ardctl browse` calls public
+  `/agents` with filter/order/pagination options. `ardctl list --filter` and
+  `--order-by` reuse the same deterministic browse parser as public `/agents`.
+  `ardctl admin status` manages remote entry lifecycle state, `ardctl admin review
+  --reason` handles pending review decisions with optional audit reasons, and `ardctl
+  admin audit` lists and verifies admin mutation events.
   `ard-server` runs the same server without exposing management subcommands.
 
 ## Specification Alignment

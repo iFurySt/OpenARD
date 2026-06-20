@@ -4,6 +4,7 @@
 
 | Date | Area | User Impact | Change Summary |
 | --- | --- | --- | --- |
+| 2026-06-21 | CLI | Clients can browse public registries without admin credentials. | Added `ardctl browse` for public `/agents` with filter, order, pagination, JSON output, unit tests, and E2E coverage. |
 | 2026-06-21 | CLI | Operators can use the same deterministic browse filters from local `ardctl list` inventory workflows. | Moved list filter/order parsing into the store layer and added `ardctl list --filter` / `--order-by` with E2E coverage. |
 | 2026-06-21 | API | Developer portals can now browse with deterministic filters and ordering instead of fetching the whole active registry. | Added `/agents` filter parsing for common spec fields and whitelisted `orderBy` support backed by Postgres queries. |
 | 2026-06-21 | API | Browse requests with invalid pagination or unsupported query options now fail fast instead of being silently normalized or ignored. | Added public `/agents` query validation for `pageSize`, `pageToken`, unsupported `filter` / `orderBy`, and unknown parameters. |

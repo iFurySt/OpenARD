@@ -280,6 +280,21 @@ if bin/ardctl --database-url "${database_url}" list --filter "score = '100'" >/t
 fi
 grep -q 'unsupported filter field "score"' /tmp/ard-e2e-local-list-invalid-filter.log
 
+bin/ardctl browse \
+  --registry-url "${registry_url}" \
+  --filter "publisherId = 'github.com'" \
+  --order-by "displayName DESC" \
+  --json >/tmp/ard-e2e-public-browse-filtered.json
+grep -q "open-browser-use" /tmp/ard-e2e-public-browse-filtered.json
+bin/ardctl browse --registry-url "${registry_url}" --limit 1 --json >/tmp/ard-e2e-public-browse-page1.json
+browse_page_token="$(python3 -c 'import json; print(json.load(open("/tmp/ard-e2e-public-browse-page1.json")).get("pageToken", ""))')"
+if [ -z "${browse_page_token}" ]; then
+  echo "public browse did not return a page token" >&2
+  exit 1
+fi
+bin/ardctl browse --registry-url "${registry_url}" --limit 1 --page-token "${browse_page_token}" --json >/tmp/ard-e2e-public-browse-page2.json
+grep -q '"items"' /tmp/ard-e2e-public-browse-page2.json
+
 bin/ardctl admin list --kind mcp --registry-url "${registry_url}" --admin-token "${admin_token}" --json >/tmp/ard-e2e-list-mcp.json
 grep -q "Agentmemory MCP" /tmp/ard-e2e-list-mcp.json
 grep -q "Weather Data Node" /tmp/ard-e2e-list-mcp.json
