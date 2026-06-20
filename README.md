@@ -36,6 +36,7 @@ ardctl export catalog -o ai-catalog.json
 ardctl admin list --registry-url https://registry.example.com --admin-token "$ARD_ADMIN_TOKEN"
 ardctl admin add catalog ./ai-catalog.json --registry-url https://registry.example.com
 ardctl admin status urn:air:example.com:server:weather disabled --registry-url https://registry.example.com
+ardctl admin review approve urn:air:example.com:server:weather --registry-url https://registry.example.com
 ardctl admin audit --registry-url https://registry.example.com --admin-token "$ARD_ADMIN_TOKEN"
 ard search "query observability logs" --kind mcp
 ard verify catalog https://example.com/.well-known/ai-catalog.json
@@ -73,10 +74,11 @@ Gin-based registry server, GORM/Postgres persistence, catalog import, well-known
 crawl, MCP/A2A/Skill/OpenAPI artifact onboarding, catalog verification, ARD search, browse, and
 explore facets, catalog export, local listing, entry removal, and token-protected admin
 API routes with an `ardctl admin` client. Admin flows can disable, reactivate, filter
-entries, apply ingestion policy, and inspect mutation audit events without exposing
-inactive resources through public discovery. It builds three entry points: `ard` for the
-combined toolkit, `ardctl` for CLI/client operations, and `ard-server` for the registry
-server. CI runs formatting checks, tests, builds, and Postgres integration tests.
+entries, apply ingestion policy, review pending entries, and inspect mutation audit
+events without exposing inactive resources through public discovery. It builds three
+entry points: `ard` for the combined toolkit, `ardctl` for CLI/client operations, and
+`ard-server` for the registry server. CI runs formatting checks, tests, builds, and
+Postgres integration tests.
 `make test-e2e` runs the real artifact onboarding flow with live MCP, Skill, OpenAPI,
 and policy-gate examples.
 

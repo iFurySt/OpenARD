@@ -29,6 +29,8 @@ Cobra, Gin, GORM, and Postgres.
   export only expose `active` entries; admin list can include and filter all statuses.
 - Ingestion policy: an optional `ARD_POLICY_FILE` / `--policy-file` JSON policy can deny
   entries or create new entries as `pending` based on publisher or media type.
+- Review workflow: pending entries can be listed through `/admin/reviews` and approved or
+  rejected through dedicated review routes and `ardctl admin review`.
 - Audit log: admin mutations append persisted events for upsert, status changes, and
   deletion with action, identifier, status, source, remote address, request ID, and
   timestamp.
@@ -137,8 +139,9 @@ boundary without changing HTTP contracts.
 - CLI equivalents: `serve`, `add catalog`, `add mcp`, `add a2a`, `add skill`,
   `add openapi`, `crawl`, `admin`, `export catalog`, `list`, `remove`, `verify catalog`,
   and `search` are implemented. `ardctl admin status` manages remote entry lifecycle
-  state, and `ardctl admin audit` lists admin mutation events. `ard-server` runs the same
-  server without exposing management subcommands.
+  state, `ardctl admin review` handles pending review decisions, and `ardctl admin audit`
+  lists admin mutation events. `ard-server` runs the same server without exposing
+  management subcommands.
 
 ## Specification Alignment
 

@@ -37,6 +37,7 @@ func newAdminCommand() *cobra.Command {
 	command.AddCommand(newAdminAddCommand(&options))
 	command.AddCommand(newAdminExportCommand(&options))
 	command.AddCommand(newAdminRemoveCommand(&options))
+	command.AddCommand(newAdminReviewCommand(&options))
 	command.AddCommand(newAdminStatusCommand(&options))
 	return command
 }
@@ -269,6 +270,71 @@ func newAdminRemoveCommand(options *adminOptions) *cobra.Command {
 	}
 	command.Flags().BoolVar(&yes, "yes", false, "Confirm removal")
 	command.Flags().BoolVar(&missingOK, "missing-ok", false, "Treat a missing identifier as success")
+	return command
+}
+
+func newAdminReviewCommand(options *adminOptions) *cobra.Command {
+	command := &cobra.Command{
+		Use:   "review",
+		Short: "Review pending remote entries",
+	}
+	command.AddCommand(newAdminReviewListCommand(options))
+	command.AddCommand(newAdminReviewDecisionCommand(options, "approve", "Approve a pending remote entry", "approved"))
+	command.AddCommand(newAdminReviewDecisionCommand(options, "reject", "Reject a pending remote entry", "rejected"))
+	return command
+}
+
+func newAdminReviewListCommand(options *adminOptions) *cobra.Command {
+	var limit int
+	var jsonOutput bool
+	command := &cobra.Command{
+		Use:   "list",
+		Short: "List pending remote entries",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			query := url.Values{}
+			if limit > 0 {
+				query.Set("pageSize", fmt.Sprint(limit))
+			}
+			body, err := adminRequest(cmd.Context(), *options, http.MethodGet, "/admin/reviews?"+query.Encode(), nil)
+			if err != nil {
+				return err
+			}
+			var response ard.ListResponse
+			if err := json.Unmarshal(body, &response); err != nil {
+				return err
+			}
+			if jsonOutput {
+				_, err := cmd.OutOrStdout().Write(append(body, '\n'))
+				return err
+			}
+			for _, entry := range response.Items {
+				fmt.Fprintf(cmd.OutOrStdout(), "%-52s  %-40s  %s\n", entry.Identifier, entry.Type, entry.DisplayName)
+			}
+			return nil
+		},
+	}
+	command.Flags().IntVar(&limit, "limit", 20, "Maximum pending entries to list")
+	command.Flags().BoolVar(&jsonOutput, "json", false, "Print remote ListResponse JSON")
+	return command
+}
+
+func newAdminReviewDecisionCommand(options *adminOptions, action string, short string, pastTense string) *cobra.Command {
+	command := &cobra.Command{
+		Use:   action + " IDENTIFIER",
+		Short: short,
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			identifier := args[0]
+			if err := ard.ValidateIdentifier(identifier); err != nil {
+				return err
+			}
+			if _, err := adminRequest(cmd.Context(), *options, http.MethodPost, "/admin/reviews/"+url.PathEscape(identifier)+"/"+action, nil); err != nil {
+				return err
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "remote %s %s\n", pastTense, identifier)
+			return nil
+		},
+	}
 	return command
 }
 

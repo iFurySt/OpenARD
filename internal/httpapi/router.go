@@ -42,10 +42,13 @@ func NewRouterWithOptions(store *store.Store, options Options) *gin.Engine {
 	if server.adminToken != "" {
 		admin := router.Group("/admin", server.requireAdminToken)
 		admin.GET("/audit", server.adminAuditEvents)
+		admin.GET("/reviews", server.adminReviewEntries)
 		admin.GET("/entries", server.adminEntries)
 		admin.POST("/entries", server.adminUpsertEntry)
 		admin.POST("/catalogs", server.adminUpsertCatalog)
 		admin.GET("/catalog", server.adminExportCatalog)
+		admin.POST("/reviews/:identifier/approve", server.adminApproveReview)
+		admin.POST("/reviews/:identifier/reject", server.adminRejectReview)
 		admin.PATCH("/entries/:identifier/status", server.adminSetEntryStatus)
 		admin.DELETE("/entries/:identifier", server.adminDeleteEntry)
 	}
@@ -182,6 +185,23 @@ func (server Server) adminEntries(context *gin.Context) {
 		Type:                     mediaType,
 		Status:                   status,
 		IncludeInactive:          status == "",
+		IncludeLifecycleMetadata: true,
+	})
+	if err != nil {
+		context.JSON(http.StatusInternalServerError, gin.H{
+			"errorCode": "INTERNAL_ERROR",
+			"message":   err.Error(),
+		})
+		return
+	}
+	context.JSON(http.StatusOK, ard.ListResponse{Items: entries, Total: int(total)})
+}
+
+func (server Server) adminReviewEntries(context *gin.Context) {
+	limit, _ := strconv.Atoi(context.DefaultQuery("pageSize", "20"))
+	entries, total, err := server.store.ListEntries(context.Request.Context(), store.ListOptions{
+		Limit:                    limit,
+		Status:                   store.LifecycleStatusPending,
 		IncludeLifecycleMetadata: true,
 	})
 	if err != nil {
@@ -372,6 +392,73 @@ func (server Server) adminSetEntryStatus(context *gin.Context) {
 		return
 	}
 	if err := server.recordAuditEvent(context, "entry.status", identifier, status); err != nil {
+		context.JSON(http.StatusInternalServerError, gin.H{
+			"errorCode": "INTERNAL_ERROR",
+			"message":   err.Error(),
+		})
+		return
+	}
+	context.JSON(http.StatusOK, gin.H{
+		"identifier": identifier,
+		"status":     status,
+	})
+}
+
+func (server Server) adminApproveReview(context *gin.Context) {
+	server.adminReviewDecision(context, store.LifecycleStatusActive, "entry.review.approve")
+}
+
+func (server Server) adminRejectReview(context *gin.Context) {
+	server.adminReviewDecision(context, store.LifecycleStatusDisabled, "entry.review.reject")
+}
+
+func (server Server) adminReviewDecision(context *gin.Context, status string, action string) {
+	identifier := context.Param("identifier")
+	if err := ard.ValidateIdentifier(identifier); err != nil {
+		context.JSON(http.StatusBadRequest, gin.H{
+			"errorCode": "INVALID_ARGUMENT",
+			"message":   err.Error(),
+		})
+		return
+	}
+	entry, found, err := server.store.GetEntry(context.Request.Context(), identifier, true)
+	if err != nil {
+		context.JSON(http.StatusInternalServerError, gin.H{
+			"errorCode": "INTERNAL_ERROR",
+			"message":   err.Error(),
+		})
+		return
+	}
+	if !found {
+		context.JSON(http.StatusNotFound, gin.H{
+			"errorCode": "NOT_FOUND",
+			"message":   "entry not found",
+		})
+		return
+	}
+	if entry.Metadata["ard.status"] != store.LifecycleStatusPending {
+		context.JSON(http.StatusConflict, gin.H{
+			"errorCode": "FAILED_PRECONDITION",
+			"message":   "entry is not pending review",
+		})
+		return
+	}
+	updated, err := server.store.SetEntryStatus(context.Request.Context(), identifier, status)
+	if err != nil {
+		context.JSON(http.StatusInternalServerError, gin.H{
+			"errorCode": "INTERNAL_ERROR",
+			"message":   err.Error(),
+		})
+		return
+	}
+	if !updated {
+		context.JSON(http.StatusNotFound, gin.H{
+			"errorCode": "NOT_FOUND",
+			"message":   "entry not found",
+		})
+		return
+	}
+	if err := server.recordAuditEvent(context, action, identifier, status); err != nil {
 		context.JSON(http.StatusInternalServerError, gin.H{
 			"errorCode": "INTERNAL_ERROR",
 			"message":   err.Error(),

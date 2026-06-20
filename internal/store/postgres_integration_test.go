@@ -73,6 +73,23 @@ func TestPostgresImportAndSearch(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("upsert pending catalog: %v", err)
 	}
+	pendingEntry, found, err := registryStore.GetEntry(ctx, "urn:air:review.acme.com:server:pending-weather", true)
+	if err != nil {
+		t.Fatalf("get pending entry: %v", err)
+	}
+	if !found {
+		t.Fatal("expected pending entry to exist")
+	}
+	if got := pendingEntry.Metadata["ard.status"]; got != LifecycleStatusPending {
+		t.Fatalf("unexpected pending lifecycle metadata: %#v", pendingEntry.Metadata)
+	}
+	_, found, err = registryStore.GetEntry(ctx, "urn:air:review.acme.com:server:missing", true)
+	if err != nil {
+		t.Fatalf("get missing entry: %v", err)
+	}
+	if found {
+		t.Fatal("expected missing entry to report not found")
+	}
 
 	pendingResults, err := registryStore.Search(ctx, ard.SearchRequest{
 		Query: ard.SearchQuery{

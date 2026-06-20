@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -210,6 +211,21 @@ func (store *Store) ListEntries(ctx context.Context, options ListOptions) ([]ard
 		entries = append(entries, entry)
 	}
 	return entries, total, nil
+}
+
+func (store *Store) GetEntry(ctx context.Context, identifier string, includeLifecycleMetadata bool) (ard.CatalogEntry, bool, error) {
+	var record CatalogEntryRecord
+	if err := store.db.WithContext(ctx).First(&record, "identifier = ?", identifier).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ard.CatalogEntry{}, false, nil
+		}
+		return ard.CatalogEntry{}, false, err
+	}
+	entry, err := record.toCatalogEntry(includeLifecycleMetadata)
+	if err != nil {
+		return ard.CatalogEntry{}, false, err
+	}
+	return entry, true, nil
 }
 
 func (store *Store) SetEntryStatus(ctx context.Context, identifier string, status string) (bool, error) {

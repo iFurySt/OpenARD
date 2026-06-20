@@ -408,10 +408,13 @@ func TestRouterAdminPolicyWithPostgres(t *testing.T) {
 	}
 
 	searchBody, _ := json.Marshal(ard.SearchRequest{Query: ard.SearchQuery{Text: "quarantine"}, PageSize: 10})
-	searchRequest := httptest.NewRequest(http.MethodPost, "/search", bytes.NewReader(searchBody))
-	searchRequest.Header.Set("Content-Type", "application/json")
+	newSearchRequest := func() *http.Request {
+		request := httptest.NewRequest(http.MethodPost, "/search", bytes.NewReader(searchBody))
+		request.Header.Set("Content-Type", "application/json")
+		return request
+	}
 	searchResponse := httptest.NewRecorder()
-	router.ServeHTTP(searchResponse, searchRequest)
+	router.ServeHTTP(searchResponse, newSearchRequest())
 	if searchResponse.Code != http.StatusOK {
 		t.Fatalf("expected search HTTP 200, got %d: %s", searchResponse.Code, searchResponse.Body.String())
 	}
@@ -445,6 +448,85 @@ func TestRouterAdminPolicyWithPostgres(t *testing.T) {
 	}
 	if !foundPending {
 		t.Fatalf("expected pending entry in admin list, got %#v", list)
+	}
+
+	reviewListRequest := httptest.NewRequest(http.MethodGet, "/admin/reviews", nil)
+	reviewListRequest.Header.Set("Authorization", "Bearer test-token")
+	reviewListResponse := httptest.NewRecorder()
+	router.ServeHTTP(reviewListResponse, reviewListRequest)
+	if reviewListResponse.Code != http.StatusOK {
+		t.Fatalf("expected review list HTTP 200, got %d: %s", reviewListResponse.Code, reviewListResponse.Body.String())
+	}
+	var reviews ard.ListResponse
+	if err := json.Unmarshal(reviewListResponse.Body.Bytes(), &reviews); err != nil {
+		t.Fatalf("decode review list: %v", err)
+	}
+	if len(reviews.Items) == 0 {
+		t.Fatalf("expected pending review entries, got %#v", reviews)
+	}
+
+	approveRequest := httptest.NewRequest(http.MethodPost, "/admin/reviews/urn:air:review.example.com:server:policy-weather/approve", nil)
+	approveRequest.Header.Set("Authorization", "Bearer test-token")
+	approveResponse := httptest.NewRecorder()
+	router.ServeHTTP(approveResponse, approveRequest)
+	if approveResponse.Code != http.StatusOK {
+		t.Fatalf("expected approve HTTP 200, got %d: %s", approveResponse.Code, approveResponse.Body.String())
+	}
+	approveAgainRequest := httptest.NewRequest(http.MethodPost, "/admin/reviews/urn:air:review.example.com:server:policy-weather/approve", nil)
+	approveAgainRequest.Header.Set("Authorization", "Bearer test-token")
+	approveAgainResponse := httptest.NewRecorder()
+	router.ServeHTTP(approveAgainResponse, approveAgainRequest)
+	if approveAgainResponse.Code != http.StatusConflict {
+		t.Fatalf("expected approve active entry HTTP 409, got %d: %s", approveAgainResponse.Code, approveAgainResponse.Body.String())
+	}
+
+	searchResponse = httptest.NewRecorder()
+	router.ServeHTTP(searchResponse, newSearchRequest())
+	if searchResponse.Code != http.StatusOK {
+		t.Fatalf("expected search after approve HTTP 200, got %d: %s", searchResponse.Code, searchResponse.Body.String())
+	}
+	if err := json.Unmarshal(searchResponse.Body.Bytes(), &search); err != nil {
+		t.Fatalf("decode approved search: %v", err)
+	}
+	if len(search.Results) == 0 {
+		t.Fatalf("expected approved entry to become searchable")
+	}
+
+	statusBody, _ := json.Marshal(map[string]string{"status": store.LifecycleStatusPending})
+	statusRequest := httptest.NewRequest(http.MethodPatch, "/admin/entries/urn:air:review.example.com:server:policy-weather/status", bytes.NewReader(statusBody))
+	statusRequest.Header.Set("Authorization", "Bearer test-token")
+	statusRequest.Header.Set("Content-Type", "application/json")
+	statusResponse := httptest.NewRecorder()
+	router.ServeHTTP(statusResponse, statusRequest)
+	if statusResponse.Code != http.StatusOK {
+		t.Fatalf("expected reset pending HTTP 200, got %d: %s", statusResponse.Code, statusResponse.Body.String())
+	}
+
+	rejectRequest := httptest.NewRequest(http.MethodPost, "/admin/reviews/urn:air:review.example.com:server:policy-weather/reject", nil)
+	rejectRequest.Header.Set("Authorization", "Bearer test-token")
+	rejectResponse := httptest.NewRecorder()
+	router.ServeHTTP(rejectResponse, rejectRequest)
+	if rejectResponse.Code != http.StatusOK {
+		t.Fatalf("expected reject HTTP 200, got %d: %s", rejectResponse.Code, rejectResponse.Body.String())
+	}
+	rejectAgainRequest := httptest.NewRequest(http.MethodPost, "/admin/reviews/urn:air:review.example.com:server:policy-weather/reject", nil)
+	rejectAgainRequest.Header.Set("Authorization", "Bearer test-token")
+	rejectAgainResponse := httptest.NewRecorder()
+	router.ServeHTTP(rejectAgainResponse, rejectAgainRequest)
+	if rejectAgainResponse.Code != http.StatusConflict {
+		t.Fatalf("expected reject disabled entry HTTP 409, got %d: %s", rejectAgainResponse.Code, rejectAgainResponse.Body.String())
+	}
+
+	searchResponse = httptest.NewRecorder()
+	router.ServeHTTP(searchResponse, newSearchRequest())
+	if searchResponse.Code != http.StatusOK {
+		t.Fatalf("expected search after reject HTTP 200, got %d: %s", searchResponse.Code, searchResponse.Body.String())
+	}
+	if err := json.Unmarshal(searchResponse.Body.Bytes(), &search); err != nil {
+		t.Fatalf("decode rejected search: %v", err)
+	}
+	if len(search.Results) != 0 {
+		t.Fatalf("expected rejected entry to be hidden from search, got %#v", search.Results)
 	}
 
 	blockedEntry := pendingEntry

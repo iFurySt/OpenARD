@@ -28,6 +28,9 @@ Set it with `--policy-file` or `ARD_POLICY_FILE`.
 - Re-importing an existing entry updates its metadata but does not overwrite its existing
   lifecycle status.
 - Public search, browse, explore, and catalog export only expose `active` entries.
+- Pending entries can be listed with `ardctl admin review list`.
+- `ardctl admin review approve IDENTIFIER` makes a pending entry active.
+- `ardctl admin review reject IDENTIFIER` disables a pending entry.
 
 Policy is an MVP ingestion gate. It is not a replacement for RBAC, signed trust
 manifests, or a full policy engine.
