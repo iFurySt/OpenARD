@@ -24,7 +24,6 @@ If a code or workflow change makes a doc stale, update the doc in the same task.
 - `docs/RELIABILITY.md`: runtime guardrails, observability expectations, and operational readiness.
 - `docs/SECURITY.md`: secure defaults for auth, data handling, secrets, and external integrations.
 - `docs/SUPPLY_CHAIN_SECURITY.md`: dependency, SBOM, provenance, and supply-chain security integration guidance.
-- `docs/CICD.md`: current CI/CD status and where to add real project automation later.
 - `docs/FRONTEND.md`: UI/system guidance if the repo includes a frontend surface.
 - `CONTRIBUTING.md`: pull request expectations and default review checklist.
 - `docs/releases/README.md`: how to maintain user-facing release notes.
