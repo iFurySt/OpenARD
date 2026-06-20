@@ -57,6 +57,21 @@ func TestEvaluateCatalogDefaultStatus(t *testing.T) {
 	}
 }
 
+func TestValidateRequiredApprovals(t *testing.T) {
+	if got := (Policy{}).NormalizedRequiredApprovals(); got != 1 {
+		t.Fatalf("expected empty requiredApprovals to normalize to 1, got %d", got)
+	}
+	if got := (Policy{RequiredApprovals: 0}).NormalizedRequiredApprovals(); got != 1 {
+		t.Fatalf("expected zero requiredApprovals to normalize to 1, got %d", got)
+	}
+	if got := (Policy{RequiredApprovals: 2}).NormalizedRequiredApprovals(); got != 2 {
+		t.Fatalf("expected requiredApprovals 2, got %d", got)
+	}
+	if err := (Policy{RequiredApprovals: -1}).Validate(); err == nil {
+		t.Fatal("expected negative requiredApprovals to fail validation")
+	}
+}
+
 func testEntry(identifier string, mediaType string) ard.CatalogEntry {
 	return ard.CatalogEntry{
 		Identifier:            identifier,

@@ -34,9 +34,11 @@ type AdminCatalogImportResponse struct {
 }
 
 type AdminStatusResponse struct {
-	Identifier string `json:"identifier"`
-	Status     string `json:"status"`
-	Reason     string `json:"reason,omitempty"`
+	Identifier        string `json:"identifier"`
+	Status            string `json:"status"`
+	Reason            string `json:"reason,omitempty"`
+	Approvals         int64  `json:"approvals,omitempty"`
+	RequiredApprovals int64  `json:"requiredApprovals,omitempty"`
 }
 
 type AdminAuditEvent struct {

@@ -53,7 +53,8 @@ last valid token set until the file is fixed.
 | `operator` | `reader` permissions plus lifecycle status changes and deletion. |
 | `admin` | All admin operations. |
 
-Tokens are matched with constant-time comparison. Token names and roles are for local
-authorization only; tokens are never logged, exported, or written to audit events. The
-single `ARD_ADMIN_TOKEN` / `--admin-token` value is read at startup; use a role token
-file when runtime rotation is required.
+Tokens are matched with constant-time comparison. Token names and roles are local
+authorization metadata. Token names may be stored as reviewer identifiers for
+approval-threshold workflows; bearer token values are never logged, exported, or written
+to audit events. The single `ARD_ADMIN_TOKEN` / `--admin-token` value is read at
+startup; use a role token file when runtime rotation is required.

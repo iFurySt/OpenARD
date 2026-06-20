@@ -183,7 +183,7 @@ func TestClientAdminRegistryFlow(t *testing.T) {
 			if payload["reason"] != "reviewed" {
 				t.Fatalf("unexpected approve payload: %#v", payload)
 			}
-			_, _ = response.Write([]byte(`{"identifier":"urn:air:example.com:server:weather","status":"active","reason":"reviewed"}`))
+			_, _ = response.Write([]byte(`{"identifier":"urn:air:example.com:server:weather","status":"active","reason":"reviewed","approvals":2,"requiredApprovals":2}`))
 		case request.Method == http.MethodPost && request.URL.EscapedPath() == "/admin/reviews/urn:air:example.com:server:weather/reject":
 			_, _ = response.Write([]byte(`{"identifier":"urn:air:example.com:server:weather","status":"disabled"}`))
 		case request.Method == http.MethodGet && request.URL.Path == "/admin/audit":
@@ -274,7 +274,7 @@ func TestClientAdminRegistryFlow(t *testing.T) {
 	if err != nil {
 		t.Fatalf("admin approve review: %v", err)
 	}
-	if approved.Status != "active" || approved.Reason != "reviewed" {
+	if approved.Status != "active" || approved.Reason != "reviewed" || approved.Approvals != 2 || approved.RequiredApprovals != 2 {
 		t.Fatalf("unexpected approve response: %#v", approved)
 	}
 

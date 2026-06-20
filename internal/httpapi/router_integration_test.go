@@ -1347,3 +1347,129 @@ func TestRouterAdminPolicyWithPostgres(t *testing.T) {
 		t.Fatalf("expected policy deny HTTP 403, got %d: %s", blockedResponse.Code, blockedResponse.Body.String())
 	}
 }
+
+func TestRouterAdminPolicyRequiresMultipleApprovalsWithPostgres(t *testing.T) {
+	databaseURL := os.Getenv("ARD_TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("set ARD_TEST_DATABASE_URL to run Postgres integration tests")
+	}
+	ctx := context.Background()
+	registryStore, err := store.Open(databaseURL)
+	if err != nil {
+		t.Fatalf("open store: %v", err)
+	}
+	defer registryStore.Close()
+	if err := registryStore.AutoMigrate(); err != nil {
+		t.Fatalf("migrate store: %v", err)
+	}
+	identifier := "urn:air:multi-review.example.com:server:policy-weather"
+	if _, err := registryStore.DeleteEntry(ctx, identifier); err != nil {
+		t.Fatalf("clean multi-review policy entry: %v", err)
+	}
+
+	router := NewRouterWithOptions(registryStore, Options{
+		AdminTokens: []AdminToken{
+			{Name: "publisher", Token: "publisher-token", Role: "publisher"},
+			{Name: "reviewer-one", Token: "reviewer-one-token", Role: "reviewer"},
+			{Name: "reviewer-two", Token: "reviewer-two-token", Role: "reviewer"},
+		},
+		Policy: &policy.Policy{
+			PendingPublishers: []string{"multi-review.example.com"},
+			RequiredApprovals: 2,
+		},
+	})
+
+	entry := ard.CatalogEntry{
+		Identifier:            identifier,
+		DisplayName:           "Multi Review Policy MCP",
+		Type:                  ard.TypeMCPServerCard,
+		URL:                   "https://multi-review.example.com/weather.json",
+		Description:           "Approvalthresholdneedle policy test resource.",
+		RepresentativeQueries: []string{"approvalthresholdneedle policy", "approvalthresholdneedle approval"},
+	}
+	entryBody, _ := json.Marshal(entry)
+	createRequest := httptest.NewRequest(http.MethodPost, "/admin/entries", bytes.NewReader(entryBody))
+	createRequest.Header.Set("Authorization", "Bearer publisher-token")
+	createRequest.Header.Set("Content-Type", "application/json")
+	createResponse := httptest.NewRecorder()
+	router.ServeHTTP(createResponse, createRequest)
+	if createResponse.Code != http.StatusCreated {
+		t.Fatalf("expected policy pending create HTTP 201, got %d: %s", createResponse.Code, createResponse.Body.String())
+	}
+
+	searchBody, _ := json.Marshal(ard.SearchRequest{Query: ard.SearchQuery{Text: "approvalthresholdneedle"}, PageSize: 10})
+	search := func() ard.SearchResponse {
+		request := httptest.NewRequest(http.MethodPost, "/search", bytes.NewReader(searchBody))
+		request.Header.Set("Content-Type", "application/json")
+		response := httptest.NewRecorder()
+		router.ServeHTTP(response, request)
+		if response.Code != http.StatusOK {
+			t.Fatalf("expected search HTTP 200, got %d: %s", response.Code, response.Body.String())
+		}
+		var parsed ard.SearchResponse
+		if err := json.Unmarshal(response.Body.Bytes(), &parsed); err != nil {
+			t.Fatalf("decode search: %v", err)
+		}
+		return parsed
+	}
+	if got := search(); len(got.Results) != 0 {
+		t.Fatalf("expected pending entry to be hidden before approval, got %#v", got.Results)
+	}
+
+	approveBody, _ := json.Marshal(map[string]string{"reason": "first reviewer approved"})
+	firstApproveRequest := httptest.NewRequest(http.MethodPost, "/admin/reviews/"+identifier+"/approve", bytes.NewReader(approveBody))
+	firstApproveRequest.Header.Set("Authorization", "Bearer reviewer-one-token")
+	firstApproveRequest.Header.Set("Content-Type", "application/json")
+	firstApproveResponse := httptest.NewRecorder()
+	router.ServeHTTP(firstApproveResponse, firstApproveRequest)
+	if firstApproveResponse.Code != http.StatusOK {
+		t.Fatalf("expected first approve HTTP 200, got %d: %s", firstApproveResponse.Code, firstApproveResponse.Body.String())
+	}
+	var firstApproval struct {
+		Status            string `json:"status"`
+		Approvals         int64  `json:"approvals"`
+		RequiredApprovals int64  `json:"requiredApprovals"`
+	}
+	if err := json.Unmarshal(firstApproveResponse.Body.Bytes(), &firstApproval); err != nil {
+		t.Fatalf("decode first approval: %v", err)
+	}
+	if firstApproval.Status != store.LifecycleStatusPending || firstApproval.Approvals != 1 || firstApproval.RequiredApprovals != 2 {
+		t.Fatalf("unexpected first approval response: %#v", firstApproval)
+	}
+	if got := search(); len(got.Results) != 0 {
+		t.Fatalf("expected entry to remain hidden after first approval, got %#v", got.Results)
+	}
+
+	duplicateApproveRequest := httptest.NewRequest(http.MethodPost, "/admin/reviews/"+identifier+"/approve", bytes.NewReader(approveBody))
+	duplicateApproveRequest.Header.Set("Authorization", "Bearer reviewer-one-token")
+	duplicateApproveRequest.Header.Set("Content-Type", "application/json")
+	duplicateApproveResponse := httptest.NewRecorder()
+	router.ServeHTTP(duplicateApproveResponse, duplicateApproveRequest)
+	if duplicateApproveResponse.Code != http.StatusConflict {
+		t.Fatalf("expected duplicate approve HTTP 409, got %d: %s", duplicateApproveResponse.Code, duplicateApproveResponse.Body.String())
+	}
+
+	secondApproveBody, _ := json.Marshal(map[string]string{"reason": "second reviewer approved"})
+	secondApproveRequest := httptest.NewRequest(http.MethodPost, "/admin/reviews/"+identifier+"/approve", bytes.NewReader(secondApproveBody))
+	secondApproveRequest.Header.Set("Authorization", "Bearer reviewer-two-token")
+	secondApproveRequest.Header.Set("Content-Type", "application/json")
+	secondApproveResponse := httptest.NewRecorder()
+	router.ServeHTTP(secondApproveResponse, secondApproveRequest)
+	if secondApproveResponse.Code != http.StatusOK {
+		t.Fatalf("expected second approve HTTP 200, got %d: %s", secondApproveResponse.Code, secondApproveResponse.Body.String())
+	}
+	var secondApproval struct {
+		Status            string `json:"status"`
+		Approvals         int64  `json:"approvals"`
+		RequiredApprovals int64  `json:"requiredApprovals"`
+	}
+	if err := json.Unmarshal(secondApproveResponse.Body.Bytes(), &secondApproval); err != nil {
+		t.Fatalf("decode second approval: %v", err)
+	}
+	if secondApproval.Status != store.LifecycleStatusActive || secondApproval.Approvals != 2 || secondApproval.RequiredApprovals != 2 {
+		t.Fatalf("unexpected second approval response: %#v", secondApproval)
+	}
+	if got := search(); len(got.Results) != 1 || got.Results[0].Identifier != identifier {
+		t.Fatalf("expected entry to become searchable after second approval, got %#v", got.Results)
+	}
+}

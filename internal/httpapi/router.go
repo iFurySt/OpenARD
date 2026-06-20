@@ -628,7 +628,7 @@ func (server Server) adminSetEntryStatus(context *gin.Context) {
 }
 
 func (server Server) adminApproveReview(context *gin.Context) {
-	server.adminReviewDecision(context, store.LifecycleStatusActive, "entry.review.approve")
+	server.adminReviewApprove(context)
 }
 
 func (server Server) adminRejectReview(context *gin.Context) {
@@ -637,53 +637,11 @@ func (server Server) adminRejectReview(context *gin.Context) {
 
 func (server Server) adminReviewDecision(context *gin.Context, status string, action string) {
 	identifier := context.Param("identifier")
-	payload := struct {
-		Reason string `json:"reason,omitempty"`
-	}{}
-	if context.Request.Body != nil && context.Request.ContentLength != 0 {
-		if err := context.ShouldBindJSON(&payload); err != nil {
-			context.JSON(http.StatusBadRequest, gin.H{
-				"errorCode": "INVALID_ARGUMENT",
-				"message":   err.Error(),
-			})
-			return
-		}
-	}
-	reason, ok := normalizeReviewReason(payload.Reason)
+	reason, ok := server.reviewDecisionPayload(context)
 	if !ok {
-		context.JSON(http.StatusBadRequest, gin.H{
-			"errorCode": "INVALID_ARGUMENT",
-			"message":   "reason must be 1000 characters or fewer",
-		})
 		return
 	}
-	if err := ard.ValidateIdentifier(identifier); err != nil {
-		context.JSON(http.StatusBadRequest, gin.H{
-			"errorCode": "INVALID_ARGUMENT",
-			"message":   err.Error(),
-		})
-		return
-	}
-	entry, found, err := server.store.GetEntry(context.Request.Context(), identifier, true)
-	if err != nil {
-		context.JSON(http.StatusInternalServerError, gin.H{
-			"errorCode": "INTERNAL_ERROR",
-			"message":   err.Error(),
-		})
-		return
-	}
-	if !found {
-		context.JSON(http.StatusNotFound, gin.H{
-			"errorCode": "NOT_FOUND",
-			"message":   "entry not found",
-		})
-		return
-	}
-	if entry.Metadata["ard.status"] != store.LifecycleStatusPending {
-		context.JSON(http.StatusConflict, gin.H{
-			"errorCode": "FAILED_PRECONDITION",
-			"message":   "entry is not pending review",
-		})
+	if !server.ensurePendingReviewEntry(context, identifier) {
 		return
 	}
 	updated, err := server.store.SetEntryStatus(context.Request.Context(), identifier, status)
@@ -713,6 +671,152 @@ func (server Server) adminReviewDecision(context *gin.Context, status string, ac
 		"reason":     reason,
 		"status":     status,
 	})
+}
+
+func (server Server) adminReviewApprove(context *gin.Context) {
+	identifier := context.Param("identifier")
+	reason, ok := server.reviewDecisionPayload(context)
+	if !ok {
+		return
+	}
+	if !server.ensurePendingReviewEntry(context, identifier) {
+		return
+	}
+	requiredApprovals := server.requiredReviewApprovals()
+	approval, err := server.store.RecordReviewApproval(
+		context.Request.Context(),
+		identifier,
+		adminReviewerFromContext(context),
+		reason,
+		requestIDFromContext(context),
+	)
+	if err != nil {
+		context.JSON(http.StatusInternalServerError, gin.H{
+			"errorCode": "INTERNAL_ERROR",
+			"message":   err.Error(),
+		})
+		return
+	}
+	if approval.Duplicate {
+		context.JSON(http.StatusConflict, gin.H{
+			"errorCode":         "FAILED_PRECONDITION",
+			"message":           "reviewer already approved this entry",
+			"identifier":        identifier,
+			"approvals":         approval.Approvals,
+			"requiredApprovals": requiredApprovals,
+			"status":            store.LifecycleStatusPending,
+		})
+		return
+	}
+	status := store.LifecycleStatusPending
+	if approval.Approvals >= int64(requiredApprovals) {
+		status = store.LifecycleStatusActive
+		updated, err := server.store.SetEntryStatus(context.Request.Context(), identifier, status)
+		if err != nil {
+			context.JSON(http.StatusInternalServerError, gin.H{
+				"errorCode": "INTERNAL_ERROR",
+				"message":   err.Error(),
+			})
+			return
+		}
+		if !updated {
+			context.JSON(http.StatusNotFound, gin.H{
+				"errorCode": "NOT_FOUND",
+				"message":   "entry not found",
+			})
+			return
+		}
+	}
+	if err := server.recordAuditEventWithReason(context, "entry.review.approve", identifier, status, reason); err != nil {
+		context.JSON(http.StatusInternalServerError, gin.H{
+			"errorCode": "INTERNAL_ERROR",
+			"message":   err.Error(),
+		})
+		return
+	}
+	context.JSON(http.StatusOK, gin.H{
+		"identifier":        identifier,
+		"reason":            reason,
+		"status":            status,
+		"approvals":         approval.Approvals,
+		"requiredApprovals": requiredApprovals,
+	})
+}
+
+func (server Server) reviewDecisionPayload(context *gin.Context) (string, bool) {
+	payload := struct {
+		Reason string `json:"reason,omitempty"`
+	}{}
+	if context.Request.Body != nil && context.Request.ContentLength != 0 {
+		if err := context.ShouldBindJSON(&payload); err != nil {
+			context.JSON(http.StatusBadRequest, gin.H{
+				"errorCode": "INVALID_ARGUMENT",
+				"message":   err.Error(),
+			})
+			return "", false
+		}
+	}
+	reason, ok := normalizeReviewReason(payload.Reason)
+	if !ok {
+		context.JSON(http.StatusBadRequest, gin.H{
+			"errorCode": "INVALID_ARGUMENT",
+			"message":   "reason must be 1000 characters or fewer",
+		})
+		return "", false
+	}
+	return reason, true
+}
+
+func (server Server) ensurePendingReviewEntry(context *gin.Context, identifier string) bool {
+	if err := ard.ValidateIdentifier(identifier); err != nil {
+		context.JSON(http.StatusBadRequest, gin.H{
+			"errorCode": "INVALID_ARGUMENT",
+			"message":   err.Error(),
+		})
+		return false
+	}
+	entry, found, err := server.store.GetEntry(context.Request.Context(), identifier, true)
+	if err != nil {
+		context.JSON(http.StatusInternalServerError, gin.H{
+			"errorCode": "INTERNAL_ERROR",
+			"message":   err.Error(),
+		})
+		return false
+	}
+	if !found {
+		context.JSON(http.StatusNotFound, gin.H{
+			"errorCode": "NOT_FOUND",
+			"message":   "entry not found",
+		})
+		return false
+	}
+	if entry.Metadata["ard.status"] != store.LifecycleStatusPending {
+		context.JSON(http.StatusConflict, gin.H{
+			"errorCode": "FAILED_PRECONDITION",
+			"message":   "entry is not pending review",
+		})
+		return false
+	}
+	return true
+}
+
+func (server Server) requiredReviewApprovals() int {
+	if server.policy == nil {
+		return 1
+	}
+	return server.policy.NormalizedRequiredApprovals()
+}
+
+func adminReviewerFromContext(context *gin.Context) string {
+	value, ok := context.Get(adminPrincipalKey)
+	if !ok {
+		return "unknown"
+	}
+	principal, ok := value.(adminPrincipal)
+	if !ok || strings.TrimSpace(principal.Name) == "" {
+		return "unknown"
+	}
+	return principal.Name
 }
 
 func normalizeReviewReason(reason string) (string, bool) {

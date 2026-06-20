@@ -4,6 +4,7 @@
 
 | Date | Area | User Impact | Change Summary |
 | --- | --- | --- | --- |
+| 2026-06-21 | Governance | Enterprises can require more than one reviewer before a pending resource becomes discoverable. | Added `requiredApprovals` policy support, distinct reviewer approval tracking, CLI/SDK approval counts, integration tests, and real E2E coverage across live Skill policy flows. |
 | 2026-06-21 | API | Registry inventories can combine alternatives without multiple client-side requests. | Added `OR` and parenthesized grouping to shared `/agents`, `ardctl browse`, and `ardctl list` filters, with parser, Postgres, HTTP, and real E2E coverage across live Skill/OpenAPI artifacts. |
 | 2026-06-21 | API | Registry inventories can express exclusion and substring filters without exporting the whole catalog. | Extended shared `/agents`, `ardctl browse`, and `ardctl list` filters with `!=`, `contains`, and `>=` operators, backed by parser tests, Postgres integration coverage, HTTP integration coverage, and real E2E checks. |
 | 2026-06-21 | SDK | Enterprise tools can manage a registry from Go without shelling out to `ardctl admin`. | Added token-protected admin methods to `pkg/client` for list/review/export/upsert/status/delete/audit workflows, plus unit tests, external import checks, and real E2E coverage against a live registry. |

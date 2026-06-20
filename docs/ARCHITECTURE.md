@@ -65,9 +65,10 @@ Cobra, Gin, GORM, and Postgres.
   entries or require review by moving new or updated entries to `pending` based on
   publisher or media type.
 - Review workflow: pending entries can be listed through `/admin/reviews` and approved or
-  rejected through dedicated review routes and `ardctl admin review`. Review decisions
-  can carry an optional reason that is recorded on the audit event, not on the ARD
-  catalog entry.
+  rejected through dedicated review routes and `ardctl admin review`. Policy can require
+  multiple distinct reviewer approvals before a pending entry becomes active. Review
+  decisions can carry an optional reason that is recorded on the audit event, not on the
+  ARD catalog entry.
 - Audit log: admin mutations append persisted events for upsert, status changes, and
   deletion with action, identifier, status, optional review reason, source, remote
   address, request ID, timestamp, previous hash, and event hash. `/admin/audit/verify`

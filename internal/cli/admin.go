@@ -388,8 +388,17 @@ func newAdminReviewDecisionCommand(options *adminOptions, action string, short s
 			if err != nil {
 				return err
 			}
-			if _, err := adminRequest(ctx, *options, http.MethodPost, "/admin/reviews/"+url.PathEscape(identifier)+"/"+action, payload); err != nil {
+			body, err := adminRequest(ctx, *options, http.MethodPost, "/admin/reviews/"+url.PathEscape(identifier)+"/"+action, payload)
+			if err != nil {
 				return err
+			}
+			var response adminStatusResponse
+			if err := json.Unmarshal(body, &response); err != nil {
+				return err
+			}
+			if action == "approve" && response.Status == "pending" && response.RequiredApprovals > 0 {
+				fmt.Fprintf(cmd.OutOrStdout(), "remote recorded approval %d/%d for %s\n", response.Approvals, response.RequiredApprovals, identifier)
+				return nil
 			}
 			fmt.Fprintf(cmd.OutOrStdout(), "remote %s %s\n", pastTense, identifier)
 			return nil
@@ -450,6 +459,14 @@ type storeAuditEvent struct {
 	PreviousHash string `json:"previousHash,omitempty"`
 	Hash         string `json:"hash,omitempty"`
 	CreatedAt    string `json:"createdAt"`
+}
+
+type adminStatusResponse struct {
+	Identifier        string `json:"identifier"`
+	Status            string `json:"status"`
+	Reason            string `json:"reason,omitempty"`
+	Approvals         int64  `json:"approvals,omitempty"`
+	RequiredApprovals int64  `json:"requiredApprovals,omitempty"`
 }
 
 func adminOperationContext(ctx context.Context, options adminOptions) context.Context {

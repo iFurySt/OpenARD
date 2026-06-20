@@ -82,7 +82,8 @@ cat >"${policy_file}" <<'JSON'
 {
   "version": "1",
   "pendingPublishers": ["pending.example.com"],
-  "denyPublishers": ["blocked.example.com"]
+  "denyPublishers": ["blocked.example.com"],
+  "requiredApprovals": 2
 }
 JSON
 cat >"${tokens_file}" <<'JSON'
@@ -92,6 +93,7 @@ cat >"${tokens_file}" <<'JSON'
     {"name": "reader", "token": "reader-token", "role": "reader"},
     {"name": "publisher", "token": "publisher-token", "role": "publisher"},
     {"name": "reviewer", "token": "reviewer-token", "role": "reviewer"},
+    {"name": "reviewer-two", "token": "reviewer-two-token", "role": "reviewer"},
     {"name": "operator", "token": "operator-token", "role": "operator"}
   ]
 }
@@ -518,7 +520,15 @@ fi
 bin/ardctl admin review approve urn:air:pending.example.com:skill:open-browser-use \
   --registry-url "${registry_url}" \
   --reason "reviewed live skill fixture" \
-  --admin-token "reviewer-token" | grep -q "remote approved urn:air:pending.example.com:skill:open-browser-use"
+  --admin-token "reviewer-token" | grep -q "remote recorded approval 1/2 for urn:air:pending.example.com:skill:open-browser-use"
+if bin/ardctl search pending.example --registry-url "${registry_url}" --kind skill --json | grep -q "pending.example.com"; then
+  echo "policy pending entry is publicly searchable after one approval" >&2
+  exit 1
+fi
+bin/ardctl admin review approve urn:air:pending.example.com:skill:open-browser-use \
+  --registry-url "${registry_url}" \
+  --reason "second reviewer approved live skill fixture" \
+  --admin-token "reviewer-two-token" | grep -q "remote approved urn:air:pending.example.com:skill:open-browser-use"
 bin/ardctl search pending.example --registry-url "${registry_url}" --kind skill --json | grep -q "pending.example.com"
 bin/ardctl admin add skill "${skill_file}" \
   --publisher pending.example.com \
@@ -533,7 +543,15 @@ fi
 bin/ardctl admin review approve urn:air:pending.example.com:skill:open-browser-use \
   --registry-url "${registry_url}" \
   --reason "approved policy update after review" \
-  --admin-token "reviewer-token" | grep -q "remote approved urn:air:pending.example.com:skill:open-browser-use"
+  --admin-token "reviewer-token" | grep -q "remote recorded approval 1/2 for urn:air:pending.example.com:skill:open-browser-use"
+if bin/ardctl search pending.example --registry-url "${registry_url}" --kind skill --json | grep -q "pending.example.com"; then
+  echo "policy pending update is publicly searchable after one approval" >&2
+  exit 1
+fi
+bin/ardctl admin review approve urn:air:pending.example.com:skill:open-browser-use \
+  --registry-url "${registry_url}" \
+  --reason "second reviewer approved policy update" \
+  --admin-token "reviewer-two-token" | grep -q "remote approved urn:air:pending.example.com:skill:open-browser-use"
 bin/ardctl admin status urn:air:pending.example.com:skill:open-browser-use pending \
   --registry-url "${registry_url}" \
   --admin-token "operator-token" | grep -q "remote set urn:air:pending.example.com:skill:open-browser-use status to pending"
@@ -572,6 +590,7 @@ bin/ardctl admin audit --registry-url "${registry_url}" --admin-token "${admin_t
 grep -q '"action":"entry.status"' /tmp/ard-e2e-audit.json
 grep -q '"identifier":"urn:air:github.com:skill:open-browser-use"' /tmp/ard-e2e-audit.json
 grep -q '"reason":"reviewed live skill fixture"' /tmp/ard-e2e-audit.json
+grep -q '"reason":"second reviewer approved live skill fixture"' /tmp/ard-e2e-audit.json
 grep -q '"reason":"rejecting pending production access"' /tmp/ard-e2e-audit.json
 grep -q '"requestId":"' /tmp/ard-e2e-audit.json
 grep -q '"hash":"' /tmp/ard-e2e-audit.json

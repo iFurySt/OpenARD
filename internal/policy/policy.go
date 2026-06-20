@@ -17,6 +17,7 @@ type Policy struct {
 	PendingPublishers []string `json:"pendingPublishers,omitempty"`
 	DenyTypes         []string `json:"denyTypes,omitempty"`
 	PendingTypes      []string `json:"pendingTypes,omitempty"`
+	RequiredApprovals int      `json:"requiredApprovals,omitempty"`
 }
 
 type Evaluation struct {
@@ -58,7 +59,17 @@ func (policy Policy) Validate() error {
 			return fmt.Errorf("defaultStatus: %w", err)
 		}
 	}
+	if policy.RequiredApprovals < 0 {
+		return fmt.Errorf("requiredApprovals must be zero or greater")
+	}
 	return nil
+}
+
+func (policy Policy) NormalizedRequiredApprovals() int {
+	if policy.RequiredApprovals > 1 {
+		return policy.RequiredApprovals
+	}
+	return 1
 }
 
 func (policy Policy) EvaluateCatalog(catalog ard.Catalog) (map[string]string, []Evaluation, error) {

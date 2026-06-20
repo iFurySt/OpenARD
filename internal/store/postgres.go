@@ -65,6 +65,14 @@ type AuditEventRecord struct {
 	CreatedAt    time.Time `gorm:"index"`
 }
 
+type ReviewApprovalRecord struct {
+	Identifier string    `gorm:"primaryKey;size:512"`
+	Reviewer   string    `gorm:"primaryKey;size:128"`
+	Reason     string    `gorm:"type:text"`
+	RequestID  string    `gorm:"index"`
+	CreatedAt  time.Time `gorm:"index"`
+}
+
 type AuditEvent struct {
 	ID           string    `json:"id"`
 	Action       string    `json:"action"`
@@ -155,6 +163,11 @@ type AuditChainVerification struct {
 	Message             string `json:"message,omitempty"`
 }
 
+type ReviewApprovalResult struct {
+	Approvals int64
+	Duplicate bool
+}
+
 func Open(databaseURL string) (*Store, error) {
 	db, err := gorm.Open(postgres.Open(databaseURL), &gorm.Config{})
 	if err != nil {
@@ -164,7 +177,7 @@ func Open(databaseURL string) (*Store, error) {
 }
 
 func (store *Store) AutoMigrate() error {
-	if err := store.db.AutoMigrate(&CatalogEntryRecord{}, &AuditEventRecord{}); err != nil {
+	if err := store.db.AutoMigrate(&CatalogEntryRecord{}, &AuditEventRecord{}, &ReviewApprovalRecord{}); err != nil {
 		return err
 	}
 	return store.BackfillAuditChain(context.Background())
@@ -231,6 +244,11 @@ func (store *Store) UpsertCatalogWithStatuses(ctx context.Context, catalog ard.C
 				Where("identifier = ?", identifier).
 				Update("lifecycle_status", status).Error; err != nil {
 				return err
+			}
+			if status == LifecycleStatusPending || status == LifecycleStatusDisabled {
+				if err := tx.Where("identifier = ?", identifier).Delete(&ReviewApprovalRecord{}).Error; err != nil {
+					return err
+				}
 			}
 		}
 		return nil
@@ -653,21 +671,76 @@ func (store *Store) SetEntryStatus(ctx context.Context, identifier string, statu
 	if err != nil {
 		return false, err
 	}
-	result := store.db.WithContext(ctx).Model(&CatalogEntryRecord{}).
-		Where("identifier = ?", identifier).
-		Update("lifecycle_status", normalized)
-	if result.Error != nil {
-		return false, result.Error
-	}
-	return result.RowsAffected > 0, nil
+	updated := false
+	err = store.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		result := tx.Model(&CatalogEntryRecord{}).
+			Where("identifier = ?", identifier).
+			Update("lifecycle_status", normalized)
+		if result.Error != nil {
+			return result.Error
+		}
+		updated = result.RowsAffected > 0
+		if updated {
+			if err := tx.Where("identifier = ?", identifier).Delete(&ReviewApprovalRecord{}).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	return updated, err
 }
 
 func (store *Store) DeleteEntry(ctx context.Context, identifier string) (bool, error) {
-	result := store.db.WithContext(ctx).Delete(&CatalogEntryRecord{}, "identifier = ?", identifier)
-	if result.Error != nil {
-		return false, result.Error
+	removed := false
+	err := store.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		result := tx.Delete(&CatalogEntryRecord{}, "identifier = ?", identifier)
+		if result.Error != nil {
+			return result.Error
+		}
+		removed = result.RowsAffected > 0
+		if removed {
+			if err := tx.Where("identifier = ?", identifier).Delete(&ReviewApprovalRecord{}).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	return removed, err
+}
+
+func (store *Store) RecordReviewApproval(ctx context.Context, identifier string, reviewer string, reason string, requestID string) (ReviewApprovalResult, error) {
+	reviewer = strings.TrimSpace(reviewer)
+	if reviewer == "" {
+		reviewer = "unknown"
 	}
-	return result.RowsAffected > 0, nil
+	var result ReviewApprovalResult
+	err := store.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var existing int64
+		if err := tx.Model(&ReviewApprovalRecord{}).
+			Where("identifier = ? AND reviewer = ?", identifier, reviewer).
+			Count(&existing).Error; err != nil {
+			return err
+		}
+		if existing > 0 {
+			result.Duplicate = true
+			return tx.Model(&ReviewApprovalRecord{}).
+				Where("identifier = ?", identifier).
+				Count(&result.Approvals).Error
+		}
+		if err := tx.Create(&ReviewApprovalRecord{
+			Identifier: identifier,
+			Reviewer:   reviewer,
+			Reason:     strings.TrimSpace(reason),
+			RequestID:  strings.TrimSpace(requestID),
+			CreatedAt:  time.Now().UTC(),
+		}).Error; err != nil {
+			return err
+		}
+		return tx.Model(&ReviewApprovalRecord{}).
+			Where("identifier = ?", identifier).
+			Count(&result.Approvals).Error
+	})
+	return result, err
 }
 
 func (store *Store) RecordAuditEvent(ctx context.Context, event AuditEvent) error {

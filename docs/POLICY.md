@@ -14,7 +14,8 @@ Set it with `--policy-file` or `ARD_POLICY_FILE`.
   "pendingPublishers": ["review.example.com"],
   "denyPublishers": ["blocked.example.com"],
   "pendingTypes": ["application/openapi+json"],
-  "denyTypes": []
+  "denyTypes": [],
+  "requiredApprovals": 2
 }
 ```
 
@@ -30,10 +31,14 @@ Set it with `--policy-file` or `ARD_POLICY_FILE`.
 - Deny rules win over pending rules.
 - Re-importing an existing entry without a pending or disabled policy result updates its
   metadata but does not overwrite its existing lifecycle status.
+- `requiredApprovals` sets how many distinct reviewer tokens must approve a pending
+  entry before it becomes active. Empty or `0` means `1`.
 - Public search, browse, explore, and catalog export only expose `active` entries.
 - Pending entries can be listed with `ardctl admin review list`.
 - `ardctl admin review approve IDENTIFIER --reason "reviewed publisher and digest"`
-  makes a pending entry active and records the reason on the review audit event.
+  records one reviewer approval. If more approvals are required, the entry remains
+  `pending`; when the threshold is reached, it becomes `active`.
+- Duplicate approvals from the same reviewer token are rejected.
 - `ardctl admin review reject IDENTIFIER --reason "not approved for production"`
   disables a pending entry and records the reason on the review audit event.
 - Review reasons are decision metadata, not ARD catalog entry metadata.
