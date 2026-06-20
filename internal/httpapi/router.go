@@ -1,7 +1,6 @@
 package httpapi
 
 import (
-	"crypto/subtle"
 	"errors"
 	"net/http"
 	"strconv"
@@ -15,14 +14,15 @@ import (
 
 type Server struct {
 	store            *store.Store
-	adminToken       string
+	adminAuthorizer  *adminAuthorizer
 	policy           *policy.Policy
 	metricsCollector *metricsCollector
 }
 
 type Options struct {
-	AdminToken string
-	Policy     *policy.Policy
+	AdminToken  string
+	AdminTokens []AdminToken
+	Policy      *policy.Policy
 }
 
 func NewRouter(store *store.Store) *gin.Engine {
@@ -31,9 +31,17 @@ func NewRouter(store *store.Store) *gin.Engine {
 
 func NewRouterWithOptions(store *store.Store, options Options) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
+	adminTokens := options.AdminTokens
+	if token := strings.TrimSpace(options.AdminToken); token != "" {
+		adminTokens = append(adminTokens, AdminToken{
+			Name:  "default-admin",
+			Token: token,
+			Role:  adminRoleAdmin,
+		})
+	}
 	server := Server{
 		store:            store,
-		adminToken:       strings.TrimSpace(options.AdminToken),
+		adminAuthorizer:  newAdminAuthorizer(adminTokens),
 		policy:           options.Policy,
 		metricsCollector: newMetricsCollector(),
 	}
@@ -46,18 +54,18 @@ func NewRouterWithOptions(store *store.Store, options Options) *gin.Engine {
 	router.GET("/agents", server.agents)
 	router.POST("/search", server.search)
 	router.POST("/explore", server.explore)
-	if server.adminToken != "" {
-		admin := router.Group("/admin", server.requireAdminToken)
-		admin.GET("/audit", server.adminAuditEvents)
-		admin.GET("/reviews", server.adminReviewEntries)
-		admin.GET("/entries", server.adminEntries)
-		admin.POST("/entries", server.adminUpsertEntry)
-		admin.POST("/catalogs", server.adminUpsertCatalog)
-		admin.GET("/catalog", server.adminExportCatalog)
-		admin.POST("/reviews/:identifier/approve", server.adminApproveReview)
-		admin.POST("/reviews/:identifier/reject", server.adminRejectReview)
-		admin.PATCH("/entries/:identifier/status", server.adminSetEntryStatus)
-		admin.DELETE("/entries/:identifier", server.adminDeleteEntry)
+	if server.adminAuthorizer != nil {
+		admin := router.Group("/admin")
+		admin.GET("/audit", server.requireAdminPermission(adminPermissionRead), server.adminAuditEvents)
+		admin.GET("/reviews", server.requireAdminPermission(adminPermissionRead), server.adminReviewEntries)
+		admin.GET("/entries", server.requireAdminPermission(adminPermissionRead), server.adminEntries)
+		admin.GET("/catalog", server.requireAdminPermission(adminPermissionRead), server.adminExportCatalog)
+		admin.POST("/entries", server.requireAdminPermission(adminPermissionPublish), server.adminUpsertEntry)
+		admin.POST("/catalogs", server.requireAdminPermission(adminPermissionPublish), server.adminUpsertCatalog)
+		admin.POST("/reviews/:identifier/approve", server.requireAdminPermission(adminPermissionReview), server.adminApproveReview)
+		admin.POST("/reviews/:identifier/reject", server.requireAdminPermission(adminPermissionReview), server.adminRejectReview)
+		admin.PATCH("/entries/:identifier/status", server.requireAdminPermission(adminPermissionOperate), server.adminSetEntryStatus)
+		admin.DELETE("/entries/:identifier", server.requireAdminPermission(adminPermissionOperate), server.adminDeleteEntry)
 	}
 	return router
 }
@@ -523,18 +531,8 @@ func (server Server) recordAuditEvent(context *gin.Context, action string, ident
 	})
 }
 
-func (server Server) requireAdminToken(context *gin.Context) {
-	expected := "Bearer " + server.adminToken
-	got := context.GetHeader("Authorization")
-	if subtle.ConstantTimeCompare([]byte(got), []byte(expected)) != 1 {
-		context.JSON(http.StatusUnauthorized, gin.H{
-			"errorCode": "UNAUTHENTICATED",
-			"message":   "admin bearer token is required",
-		})
-		context.Abort()
-		return
-	}
-	context.Next()
+func (server Server) requireAdminPermission(permission adminPermission) gin.HandlerFunc {
+	return server.adminAuthorizer.require(permission)
 }
 
 func mediaTypeForKind(kind string) string {

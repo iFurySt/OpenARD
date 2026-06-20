@@ -360,6 +360,145 @@ func TestRouterAdminAPIWithPostgres(t *testing.T) {
 	}
 }
 
+func TestRouterAdminRBACWithPostgres(t *testing.T) {
+	databaseURL := os.Getenv("ARD_TEST_DATABASE_URL")
+	if databaseURL == "" {
+		t.Skip("set ARD_TEST_DATABASE_URL to run Postgres integration tests")
+	}
+	ctx := context.Background()
+	registryStore, err := store.Open(databaseURL)
+	if err != nil {
+		t.Fatalf("open store: %v", err)
+	}
+	defer registryStore.Close()
+	if err := registryStore.AutoMigrate(); err != nil {
+		t.Fatalf("migrate store: %v", err)
+	}
+	identifiers := []string{
+		"urn:air:rbac.example.com:server:publisher-weather",
+		"urn:air:rbac.example.com:server:review-weather",
+	}
+	for _, identifier := range identifiers {
+		if _, err := registryStore.DeleteEntry(ctx, identifier); err != nil {
+			t.Fatalf("clean %s: %v", identifier, err)
+		}
+	}
+
+	router := NewRouterWithOptions(registryStore, Options{
+		AdminTokens: []AdminToken{
+			{Name: "reader", Token: "reader-token", Role: "reader"},
+			{Name: "publisher", Token: "publisher-token", Role: "publisher"},
+			{Name: "reviewer", Token: "reviewer-token", Role: "reviewer"},
+			{Name: "operator", Token: "operator-token", Role: "operator"},
+		},
+	})
+
+	entry := ard.CatalogEntry{
+		Identifier:            "urn:air:rbac.example.com:server:publisher-weather",
+		DisplayName:           "RBAC Publisher Weather",
+		Type:                  ard.TypeMCPServerCard,
+		URL:                   "https://rbac.example.com/mcp/publisher-weather.json",
+		Description:           "Weather MCP server added through a publisher token.",
+		RepresentativeQueries: []string{"weather through publisher token", "publisher token forecast"},
+	}
+	entryBody, _ := json.Marshal(entry)
+	readerCreateRequest := httptest.NewRequest(http.MethodPost, "/admin/entries", bytes.NewReader(entryBody))
+	readerCreateRequest.Header.Set("Authorization", "Bearer reader-token")
+	readerCreateRequest.Header.Set("Content-Type", "application/json")
+	readerCreateResponse := httptest.NewRecorder()
+	router.ServeHTTP(readerCreateResponse, readerCreateRequest)
+	if readerCreateResponse.Code != http.StatusForbidden {
+		t.Fatalf("expected reader create HTTP 403, got %d: %s", readerCreateResponse.Code, readerCreateResponse.Body.String())
+	}
+
+	publisherCreateRequest := httptest.NewRequest(http.MethodPost, "/admin/entries", bytes.NewReader(entryBody))
+	publisherCreateRequest.Header.Set("Authorization", "Bearer publisher-token")
+	publisherCreateRequest.Header.Set("Content-Type", "application/json")
+	publisherCreateResponse := httptest.NewRecorder()
+	router.ServeHTTP(publisherCreateResponse, publisherCreateRequest)
+	if publisherCreateResponse.Code != http.StatusCreated {
+		t.Fatalf("expected publisher create HTTP 201, got %d: %s", publisherCreateResponse.Code, publisherCreateResponse.Body.String())
+	}
+
+	readerListRequest := httptest.NewRequest(http.MethodGet, "/admin/entries?kind=mcp", nil)
+	readerListRequest.Header.Set("Authorization", "Bearer reader-token")
+	readerListResponse := httptest.NewRecorder()
+	router.ServeHTTP(readerListResponse, readerListRequest)
+	if readerListResponse.Code != http.StatusOK {
+		t.Fatalf("expected reader list HTTP 200, got %d: %s", readerListResponse.Code, readerListResponse.Body.String())
+	}
+
+	pendingCatalog := ard.Catalog{
+		SpecVersion: "1.0",
+		Entries: []ard.CatalogEntry{
+			{
+				Identifier:            "urn:air:rbac.example.com:server:review-weather",
+				DisplayName:           "RBAC Review Weather",
+				Type:                  ard.TypeMCPServerCard,
+				URL:                   "https://rbac.example.com/mcp/review-weather.json",
+				Description:           "Weather MCP server awaiting reviewer approval.",
+				RepresentativeQueries: []string{"weather review token", "review token forecast"},
+			},
+		},
+	}
+	if err := registryStore.UpsertCatalogWithStatuses(ctx, pendingCatalog, "rbac-test", map[string]string{
+		"urn:air:rbac.example.com:server:review-weather": store.LifecycleStatusPending,
+	}); err != nil {
+		t.Fatalf("upsert pending review entry: %v", err)
+	}
+
+	operatorApproveRequest := httptest.NewRequest(http.MethodPost, "/admin/reviews/urn:air:rbac.example.com:server:review-weather/approve", nil)
+	operatorApproveRequest.Header.Set("Authorization", "Bearer operator-token")
+	operatorApproveResponse := httptest.NewRecorder()
+	router.ServeHTTP(operatorApproveResponse, operatorApproveRequest)
+	if operatorApproveResponse.Code != http.StatusForbidden {
+		t.Fatalf("expected operator approve HTTP 403, got %d: %s", operatorApproveResponse.Code, operatorApproveResponse.Body.String())
+	}
+
+	reviewerApproveRequest := httptest.NewRequest(http.MethodPost, "/admin/reviews/urn:air:rbac.example.com:server:review-weather/approve", nil)
+	reviewerApproveRequest.Header.Set("Authorization", "Bearer reviewer-token")
+	reviewerApproveResponse := httptest.NewRecorder()
+	router.ServeHTTP(reviewerApproveResponse, reviewerApproveRequest)
+	if reviewerApproveResponse.Code != http.StatusOK {
+		t.Fatalf("expected reviewer approve HTTP 200, got %d: %s", reviewerApproveResponse.Code, reviewerApproveResponse.Body.String())
+	}
+
+	statusBody, _ := json.Marshal(map[string]string{"status": store.LifecycleStatusDisabled})
+	reviewerStatusRequest := httptest.NewRequest(http.MethodPatch, "/admin/entries/urn:air:rbac.example.com:server:publisher-weather/status", bytes.NewReader(statusBody))
+	reviewerStatusRequest.Header.Set("Authorization", "Bearer reviewer-token")
+	reviewerStatusRequest.Header.Set("Content-Type", "application/json")
+	reviewerStatusResponse := httptest.NewRecorder()
+	router.ServeHTTP(reviewerStatusResponse, reviewerStatusRequest)
+	if reviewerStatusResponse.Code != http.StatusForbidden {
+		t.Fatalf("expected reviewer status HTTP 403, got %d: %s", reviewerStatusResponse.Code, reviewerStatusResponse.Body.String())
+	}
+
+	operatorStatusRequest := httptest.NewRequest(http.MethodPatch, "/admin/entries/urn:air:rbac.example.com:server:publisher-weather/status", bytes.NewReader(statusBody))
+	operatorStatusRequest.Header.Set("Authorization", "Bearer operator-token")
+	operatorStatusRequest.Header.Set("Content-Type", "application/json")
+	operatorStatusResponse := httptest.NewRecorder()
+	router.ServeHTTP(operatorStatusResponse, operatorStatusRequest)
+	if operatorStatusResponse.Code != http.StatusOK {
+		t.Fatalf("expected operator status HTTP 200, got %d: %s", operatorStatusResponse.Code, operatorStatusResponse.Body.String())
+	}
+
+	publisherDeleteRequest := httptest.NewRequest(http.MethodDelete, "/admin/entries/urn:air:rbac.example.com:server:publisher-weather", nil)
+	publisherDeleteRequest.Header.Set("Authorization", "Bearer publisher-token")
+	publisherDeleteResponse := httptest.NewRecorder()
+	router.ServeHTTP(publisherDeleteResponse, publisherDeleteRequest)
+	if publisherDeleteResponse.Code != http.StatusForbidden {
+		t.Fatalf("expected publisher delete HTTP 403, got %d: %s", publisherDeleteResponse.Code, publisherDeleteResponse.Body.String())
+	}
+
+	operatorDeleteRequest := httptest.NewRequest(http.MethodDelete, "/admin/entries/urn:air:rbac.example.com:server:publisher-weather", nil)
+	operatorDeleteRequest.Header.Set("Authorization", "Bearer operator-token")
+	operatorDeleteResponse := httptest.NewRecorder()
+	router.ServeHTTP(operatorDeleteResponse, operatorDeleteRequest)
+	if operatorDeleteResponse.Code != http.StatusNoContent {
+		t.Fatalf("expected operator delete HTTP 204, got %d: %s", operatorDeleteResponse.Code, operatorDeleteResponse.Body.String())
+	}
+}
+
 func TestRouterAdminPolicyWithPostgres(t *testing.T) {
 	databaseURL := os.Getenv("ARD_TEST_DATABASE_URL")
 	if databaseURL == "" {

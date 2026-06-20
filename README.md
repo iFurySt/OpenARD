@@ -22,6 +22,7 @@ found.
 ```sh
 ard serve
 ard-server --addr :8080 --admin-token "$ARD_ADMIN_TOKEN"
+ard-server --admin-tokens-file ./admin-tokens.json
 ard-server --policy-file ./policy.json --admin-token "$ARD_ADMIN_TOKEN"
 ard add catalog https://example.com/.well-known/ai-catalog.json
 ardctl add catalog https://example.com/.well-known/ai-catalog.json
@@ -75,10 +76,11 @@ crawl, MCP/A2A/Skill/OpenAPI artifact onboarding, catalog verification, ARD sear
 explore facets, catalog export, local listing, entry removal, and token-protected admin
 API routes with an `ardctl admin` client. Admin flows can disable, reactivate, filter
 entries, apply ingestion policy, review pending entries, and inspect mutation audit
-events without exposing inactive resources through public discovery. The registry also
-exposes request correlation, JSON access logs, and Prometheus-style `/metrics`. It builds
-three entry points: `ard` for the combined toolkit, `ardctl` for CLI/client operations,
-and `ard-server` for the registry server. CI runs formatting checks, tests, builds, and
+events without exposing inactive resources through public discovery. Server deployments
+can use a single admin token or role-scoped admin tokens. The registry also exposes
+request correlation, JSON access logs, and Prometheus-style `/metrics`. It builds three
+entry points: `ard` for the combined toolkit, `ardctl` for CLI/client operations, and
+`ard-server` for the registry server. CI runs formatting checks, tests, builds, and
 Postgres integration tests.
 `make test-e2e` runs the real artifact onboarding flow with live MCP, Skill, OpenAPI,
 and policy-gate examples.
@@ -91,6 +93,7 @@ tools.
 See:
 
 - [Architecture](docs/ARCHITECTURE.md)
+- [Admin Authorization](docs/ADMIN_AUTH.md)
 - [Product Sense](docs/PRODUCT_SENSE.md)
 - [Policy](docs/POLICY.md)
 - [ARD Spec Working Notes](docs/references/ard-spec-working-notes.md)

@@ -10,6 +10,7 @@ database_url="postgres://ard:ard@127.0.0.1:${postgres_port}/ard?sslmode=disable"
 registry_url="http://127.0.0.1:${registry_port}"
 export_file="$(mktemp /tmp/ard-e2e-export-XXXXXX.json)"
 policy_file="$(mktemp /tmp/ard-e2e-policy-XXXXXX.json)"
+tokens_file="$(mktemp /tmp/ard-e2e-tokens-XXXXXX.json)"
 mcp_card_file="$(mktemp /tmp/ard-e2e-mcp-card-XXXXXX.json)"
 skill_file="$(mktemp /tmp/ard-e2e-skill-XXXXXX.md)"
 openapi_file="$(mktemp /tmp/ard-e2e-openapi-XXXXXX.json)"
@@ -30,7 +31,7 @@ cleanup() {
     wait "${fixture_pid}" >/dev/null 2>&1 || true
   fi
   docker rm -f "${postgres_container}" >/dev/null 2>&1 || true
-  rm -f "${export_file}" "${policy_file}" "${mcp_card_file}" "${skill_file}" "${openapi_file}"
+  rm -f "${export_file}" "${policy_file}" "${tokens_file}" "${mcp_card_file}" "${skill_file}" "${openapi_file}"
 }
 trap cleanup EXIT
 
@@ -61,6 +62,17 @@ cat >"${policy_file}" <<'JSON'
   "version": "1",
   "pendingPublishers": ["pending.example.com"],
   "denyPublishers": ["blocked.example.com"]
+}
+JSON
+cat >"${tokens_file}" <<'JSON'
+{
+  "version": "1",
+  "tokens": [
+    {"name": "reader", "token": "reader-token", "role": "reader"},
+    {"name": "publisher", "token": "publisher-token", "role": "publisher"},
+    {"name": "reviewer", "token": "reviewer-token", "role": "reviewer"},
+    {"name": "operator", "token": "operator-token", "role": "operator"}
+  ]
 }
 JSON
 
@@ -96,6 +108,7 @@ bin/ard-server \
   --database-url "${database_url}" \
   --addr "127.0.0.1:${registry_port}" \
   --admin-token "${admin_token}" \
+  --admin-tokens-file "${tokens_file}" \
   --policy-file "${policy_file}" >/tmp/ard-e2e-registry.log 2>&1 &
 registry_pid=$!
 for _ in $(seq 1 30); do
@@ -137,11 +150,21 @@ bin/ardctl admin add openapi "${openapi_file}" \
 bin/ardctl admin add a2a "http://127.0.0.1:${fixture_port}/a2a-agent-card.json" \
   --publisher example.com \
   --registry-url "${registry_url}" \
-  --admin-token "${admin_token}"
+  --admin-token "publisher-token"
 
 bin/ardctl admin list --kind mcp --registry-url "${registry_url}" --admin-token "${admin_token}" --json >/tmp/ard-e2e-list-mcp.json
 grep -q "Agentmemory MCP" /tmp/ard-e2e-list-mcp.json
 grep -q "Weather Data Node" /tmp/ard-e2e-list-mcp.json
+bin/ardctl admin list --kind mcp --registry-url "${registry_url}" --admin-token "reader-token" --json >/tmp/ard-e2e-reader-list-mcp.json
+grep -q "Agentmemory MCP" /tmp/ard-e2e-reader-list-mcp.json
+if bin/ardctl admin remove urn:air:raw.githubusercontent.com:server:agentmemory-mcp \
+  --registry-url "${registry_url}" \
+  --admin-token "reader-token" \
+  --yes >/tmp/ard-e2e-rbac-deny.log 2>&1; then
+  echo "reader token unexpectedly removed an entry" >&2
+  exit 1
+fi
+grep -q "PERMISSION_DENIED" /tmp/ard-e2e-rbac-deny.log
 
 bin/ardctl admin export catalog --registry-url "${registry_url}" --admin-token "${admin_token}" -o "${export_file}"
 grep -q "Agentmemory MCP" "${export_file}"
@@ -173,14 +196,14 @@ if bin/ardctl search pending.example --registry-url "${registry_url}" --kind ski
 fi
 bin/ardctl admin review approve urn:air:pending.example.com:skill:open-browser-use \
   --registry-url "${registry_url}" \
-  --admin-token "${admin_token}" | grep -q "remote approved urn:air:pending.example.com:skill:open-browser-use"
+  --admin-token "reviewer-token" | grep -q "remote approved urn:air:pending.example.com:skill:open-browser-use"
 bin/ardctl search pending.example --registry-url "${registry_url}" --kind skill --json | grep -q "pending.example.com"
 bin/ardctl admin status urn:air:pending.example.com:skill:open-browser-use pending \
   --registry-url "${registry_url}" \
-  --admin-token "${admin_token}" | grep -q "remote set urn:air:pending.example.com:skill:open-browser-use status to pending"
+  --admin-token "operator-token" | grep -q "remote set urn:air:pending.example.com:skill:open-browser-use status to pending"
 bin/ardctl admin review reject urn:air:pending.example.com:skill:open-browser-use \
   --registry-url "${registry_url}" \
-  --admin-token "${admin_token}" | grep -q "remote rejected urn:air:pending.example.com:skill:open-browser-use"
+  --admin-token "reviewer-token" | grep -q "remote rejected urn:air:pending.example.com:skill:open-browser-use"
 if bin/ardctl search pending.example --registry-url "${registry_url}" --kind skill --json | grep -q "pending.example.com"; then
   echo "rejected review entry is publicly searchable" >&2
   exit 1

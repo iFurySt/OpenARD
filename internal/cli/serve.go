@@ -21,6 +21,7 @@ func newServeCommand(root *rootOptions) *cobra.Command {
 	}
 	command.Flags().StringVar(&addr, "addr", ":8080", "HTTP listen address")
 	addAdminTokenFlag(command, root)
+	addAdminTokensFileFlag(command, root)
 	return command
 }
 
@@ -43,10 +44,38 @@ func runServer(cmd *cobra.Command, root *rootOptions, addr string) error {
 		loadedPolicy = &parsedPolicy
 	}
 
+	adminTokens, err := loadAdminTokens(root)
+	if err != nil {
+		return err
+	}
+
 	router := httpapi.NewRouterWithOptions(registryStore, httpapi.Options{
-		AdminToken: config.AdminToken(root.adminToken),
-		Policy:     loadedPolicy,
+		AdminTokens: adminTokens,
+		Policy:      loadedPolicy,
 	})
 	fmt.Fprintf(cmd.ErrOrStderr(), "listening on %s\n", addr)
 	return router.Run(addr)
+}
+
+func loadAdminTokens(root *rootOptions) ([]httpapi.AdminToken, error) {
+	var tokens []httpapi.AdminToken
+	if token := config.AdminToken(root.adminToken); token != "" {
+		tokens = append(tokens, httpapi.AdminToken{
+			Name:  "default-admin",
+			Token: token,
+			Role:  "admin",
+		})
+	}
+	if tokensFile := config.AdminTokensFile(root.adminTokensFile); tokensFile != "" {
+		loadedTokens, err := httpapi.LoadAdminTokensFile(tokensFile)
+		if err != nil {
+			return nil, fmt.Errorf("load admin tokens: %w", err)
+		}
+		tokens = append(tokens, loadedTokens...)
+	}
+	normalized, err := httpapi.NormalizeAdminTokens(tokens)
+	if err != nil {
+		return nil, fmt.Errorf("load admin tokens: %w", err)
+	}
+	return normalized, nil
 }

@@ -44,6 +44,9 @@ func TestCLICommandOmitsServe(t *testing.T) {
 	if command.Flag("admin-token") != nil {
 		t.Fatal("ardctl should not expose server admin token flag")
 	}
+	if command.Flag("admin-tokens-file") != nil {
+		t.Fatal("ardctl should not expose server admin tokens file flag")
+	}
 }
 
 func TestServerCommandRunsAtRoot(t *testing.T) {
@@ -56,6 +59,9 @@ func TestServerCommandRunsAtRoot(t *testing.T) {
 	}
 	if command.Flag("admin-token") == nil {
 		t.Fatal("ard-server should expose admin token flag")
+	}
+	if command.Flag("admin-tokens-file") == nil {
+		t.Fatal("ard-server should expose admin tokens file flag")
 	}
 	if len(command.Commands()) != 0 {
 		t.Fatalf("ard-server should not expose management subcommands, got %d", len(command.Commands()))

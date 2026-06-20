@@ -5,9 +5,10 @@ import (
 )
 
 type rootOptions struct {
-	databaseURL string
-	adminToken  string
-	policyFile  string
+	databaseURL     string
+	adminToken      string
+	adminTokensFile string
+	policyFile      string
 }
 
 func NewRootCommand() *cobra.Command {
@@ -30,6 +31,7 @@ func NewServerCommand() *cobra.Command {
 	}
 	addDatabaseFlag(command, &options)
 	addAdminTokenFlag(command, &options)
+	addAdminTokensFileFlag(command, &options)
 	addPolicyFlag(command, &options)
 	command.Flags().StringVar(&addr, "addr", ":8080", "HTTP listen address")
 	return command
@@ -73,6 +75,15 @@ func addAdminTokenFlag(command *cobra.Command, options *rootOptions) {
 		"admin-token",
 		"",
 		"Bearer token for protected admin API routes. Defaults to ARD_ADMIN_TOKEN.",
+	)
+}
+
+func addAdminTokensFileFlag(command *cobra.Command, options *rootOptions) {
+	command.Flags().StringVar(
+		&options.adminTokensFile,
+		"admin-tokens-file",
+		"",
+		"Optional admin token role file. Defaults to ARD_ADMIN_TOKENS_FILE.",
 	)
 }
 

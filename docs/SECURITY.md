@@ -7,11 +7,15 @@ Use this document to make secure defaults explicit and legible to agents.
 - Public ARD discovery routes do not require authentication in the local registry.
 - Implementation-specific `/admin/*` routes are disabled by default.
 - Set `ARD_ADMIN_TOKEN` or pass `--admin-token` to `ard serve` / `ard-server` to enable
-  admin routes.
+  one full-access admin token.
+- Set `ARD_ADMIN_TOKENS_FILE` or pass `--admin-tokens-file` to enable role-scoped admin
+  tokens.
 - Admin requests must send `Authorization: Bearer <token>`.
+- Supported roles are `reader`, `publisher`, `reviewer`, `operator`, and `admin`.
 - Do not log, commit, export, or echo admin tokens.
 - Run admin routes behind TLS and a trusted ingress in shared environments. The built-in
-  bearer token is an MVP management guard, not a full enterprise identity layer.
+  bearer token system is an MVP management guard, not a full enterprise identity layer.
+- Detailed role behavior is in `docs/ADMIN_AUTH.md`.
 
 ## Lifecycle Governance
 
@@ -55,7 +59,6 @@ Use this document to make secure defaults explicit and legible to agents.
 
 ## Current Gaps
 
-- No role-based authorization yet.
 - No token rotation workflow yet.
 - No tamper-evident audit log yet.
 - No signed policy bundle or external policy engine yet.

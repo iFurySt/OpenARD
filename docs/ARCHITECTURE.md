@@ -20,10 +20,13 @@ Cobra, Gin, GORM, and Postgres.
   spec-shaped `ai-catalog.json` for backup, migration, or well-known publication.
 - Local registry management: `ardctl list` and `ardctl remove` inspect and prune
   persisted catalog entries.
-- Admin API: when `ARD_ADMIN_TOKEN` or `--admin-token` is configured, Gin exposes
-  protected `/admin/*` routes for entry listing, entry upsert, catalog upsert, catalog
-  export, lifecycle status changes, audit event listing, and deletion. `ardctl admin` is
-  the first client for those remote routes.
+- Admin API: when `ARD_ADMIN_TOKEN`, `--admin-token`, `ARD_ADMIN_TOKENS_FILE`, or
+  `--admin-tokens-file` is configured, Gin exposes protected `/admin/*` routes for entry
+  listing, entry upsert, catalog upsert, catalog export, lifecycle status changes, audit
+  event listing, and deletion. `ardctl admin` is the first client for those remote routes.
+- Admin authorization: a single legacy admin token still grants full access. Optional
+  role-scoped token files split admin access into `reader`, `publisher`, `reviewer`,
+  `operator`, and `admin` permissions.
 - Lifecycle governance: persisted entries have an implementation-owned lifecycle status
   of `active`, `pending`, or `disabled`. Public discovery, search, explore, and catalog
   export only expose `active` entries; admin list can include and filter all statuses.
@@ -119,8 +122,8 @@ boundary without changing HTTP contracts.
   timeout controls.
 - Secrets and tokens may be used during request scope only; they must not be stored or
   emitted in plain text.
-- Admin API routes must remain disabled by default and require `Authorization: Bearer`
-  when enabled.
+- Admin API routes must remain disabled by default and require an authorized
+  `Authorization: Bearer` token when enabled.
 - Inactive lifecycle states are implementation metadata, not ARD catalog schema fields.
   Do not export disabled or pending entries through public catalog/search surfaces.
 - Policy evaluation must happen before persistence for local add/crawl and remote admin

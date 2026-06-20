@@ -21,6 +21,13 @@ func AdminToken(flagValue string) string {
 	return os.Getenv("ARD_ADMIN_TOKEN")
 }
 
+func AdminTokensFile(flagValue string) string {
+	if flagValue != "" {
+		return flagValue
+	}
+	return os.Getenv("ARD_ADMIN_TOKENS_FILE")
+}
+
 func PolicyFile(flagValue string) string {
 	if flagValue != "" {
 		return flagValue
