@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/ifuryst/ard/internal/requestid"
 	"github.com/ifuryst/ard/internal/tracecontext"
+	"github.com/ifuryst/ard/internal/traceexporter"
 )
 
 const requestIDKey = "request_id"
@@ -65,6 +66,28 @@ func jsonAccessLogMiddleware() gin.HandlerFunc {
 			return
 		}
 		fmt.Fprintln(gin.DefaultWriter, string(data))
+	}
+}
+
+func traceExportMiddleware(exporter traceexporter.Exporter) gin.HandlerFunc {
+	return func(context *gin.Context) {
+		startedAt := time.Now()
+		context.Next()
+		if exporter == nil {
+			return
+		}
+		span := traceexporter.Span{
+			Trace:     traceContextFromContext(context),
+			RequestID: requestIDFromContext(context),
+			Method:    context.Request.Method,
+			Path:      context.Request.URL.Path,
+			Route:     routeLabel(context),
+			ClientIP:  context.ClientIP(),
+			Status:    context.Writer.Status(),
+			StartedAt: startedAt,
+			EndedAt:   time.Now(),
+		}
+		_ = exporter.ExportSpan(context.Request.Context(), span)
 	}
 }
 

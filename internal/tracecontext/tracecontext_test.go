@@ -16,6 +16,9 @@ func TestStartContinuesIncomingTrace(t *testing.T) {
 	if trace.SpanID == "00f067aa0ba902b7" || trace.SpanID == "" {
 		t.Fatalf("expected new service span id, got %#v", trace)
 	}
+	if trace.ParentSpanID != "00f067aa0ba902b7" {
+		t.Fatalf("expected parent span id, got %#v", trace)
+	}
 	if trace.Flags != "01" {
 		t.Fatalf("unexpected flags: %#v", trace)
 	}

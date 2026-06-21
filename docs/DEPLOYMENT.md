@@ -89,6 +89,14 @@ ARD_ADMIN_TOKEN='change-me' \
 bin/ard-server --addr :8080
 ```
 
+Enable OTLP/HTTP trace export:
+
+```sh
+ARD_OTLP_TRACES_ENDPOINT='http://127.0.0.1:4318/v1/traces' \
+DATABASE_URL='postgres://ard:ard@localhost:5432/ard?sslmode=disable' \
+bin/ard-server --addr :8080
+```
+
 ## Container Image
 
 Build the local image:
@@ -111,6 +119,8 @@ Expected environment:
 - `ARD_ADMIN_TOKENS_FILE`: optional role-scoped token file path. The running server
   reloads this file when it changes.
 - `ARD_POLICY_FILE`: optional ingestion policy file path.
+- `ARD_OTLP_TRACES_ENDPOINT`: optional OTLP/HTTP traces endpoint. Base collector URLs
+  are normalized to `/v1/traces`.
 
 ## Compose
 

@@ -95,8 +95,9 @@ Cobra, Gin, GORM, and Postgres.
   digest verification.
 - Trace context: Gin middleware accepts or generates W3C `traceparent`, returns the
   current service span on each HTTP response, adds trace IDs and span IDs to JSON access
-  logs, and propagates trace context to outbound federation, catalog, artifact, source
-  digest, attestation digest, provenance digest, and admin client requests.
+  logs, optionally exports server spans to an OTLP/HTTP trace endpoint, and propagates
+  trace context to outbound federation, catalog, artifact, source digest, attestation
+  digest, provenance digest, and admin client requests.
 - Metrics: Gin exposes public Prometheus-style `/metrics` with process uptime,
   in-flight requests, request totals, HTTP duration histograms by method, route, and
   status, plus low-cardinality Go runtime gauges for goroutines, heap, and GC state.
@@ -219,8 +220,8 @@ changing HTTP contracts.
   context carries one. `ardctl admin` generates an operation-level request ID by default
   and accepts `--request-id` / `ARD_REQUEST_ID` when operators want to set it explicitly.
 - Inbound and outbound HTTP trace context uses W3C `traceparent`. The registry should
-  preserve the incoming trace ID, create a local span ID, and propagate that context
-  downstream. This is context propagation only, not a trace exporter.
+  preserve the incoming trace ID, create a local span ID, optionally export the completed
+  server span to OTLP/HTTP, and propagate that context downstream.
 - Secrets and tokens may be used during request scope only; they must not be stored or
   emitted in plain text.
 - Admin API routes must remain disabled by default and require an authorized

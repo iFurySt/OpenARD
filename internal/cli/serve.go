@@ -8,6 +8,7 @@ import (
 	"github.com/ifuryst/ard/internal/httpapi"
 	"github.com/ifuryst/ard/internal/policy"
 	"github.com/ifuryst/ard/internal/store"
+	"github.com/ifuryst/ard/internal/traceexporter"
 	"github.com/spf13/cobra"
 )
 
@@ -23,6 +24,7 @@ func newServeCommand(root *rootOptions) *cobra.Command {
 	command.Flags().StringVar(&addr, "addr", ":8080", "HTTP listen address")
 	addAdminTokenFlag(command, root)
 	addAdminTokensFileFlag(command, root)
+	addOTLPTracesEndpointFlag(command, root)
 	return command
 }
 
@@ -50,13 +52,31 @@ func runServer(cmd *cobra.Command, root *rootOptions, addr string) error {
 		return err
 	}
 
+	traceExporter, err := loadTraceExporter(root)
+	if err != nil {
+		return err
+	}
+
 	router := httpapi.NewRouterWithOptions(registryStore, httpapi.Options{
 		AdminTokens:     adminTokens,
 		AdminTokensFile: adminTokensFile,
 		Policy:          loadedPolicy,
+		TraceExporter:   traceExporter,
 	})
 	fmt.Fprintf(cmd.ErrOrStderr(), "listening on %s (%s)\n", addr, buildinfo.Current().String())
 	return router.Run(addr)
+}
+
+func loadTraceExporter(root *rootOptions) (traceexporter.Exporter, error) {
+	endpoint := config.OTLPTracesEndpoint(root.otlpTracesEndpoint)
+	if endpoint == "" {
+		return nil, nil
+	}
+	exporter, err := traceexporter.NewOTLPHTTP(endpoint, "ard")
+	if err != nil {
+		return nil, fmt.Errorf("configure trace exporter: %w", err)
+	}
+	return exporter, nil
 }
 
 func loadAdminAuthConfig(root *rootOptions) ([]httpapi.AdminToken, string, error) {

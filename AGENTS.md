@@ -24,6 +24,7 @@ If a code or workflow change makes a doc stale, update the doc in the same task.
 - `docs/PRODUCT_SENSE.md`: user value, product constraints, and feature prioritization heuristics.
 - `docs/DEPLOYMENT.md`: binary, container, and Docker Compose deployment behavior.
 - `docs/POLICY.md`: ingestion policy file format and lifecycle behavior.
+- `docs/OBSERVABILITY.md`: local health, metrics, logs, and OTLP trace-export workflow.
 - `docs/RELIABILITY.md`: runtime guardrails, observability expectations, and operational readiness.
 - `docs/SECURITY.md`: secure defaults for auth, data handling, secrets, and external integrations.
 - `docs/SUPPLY_CHAIN_SECURITY.md`: dependency, SBOM, provenance, and supply-chain security integration guidance.

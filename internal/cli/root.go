@@ -8,10 +8,11 @@ import (
 )
 
 type rootOptions struct {
-	databaseURL     string
-	adminToken      string
-	adminTokensFile string
-	policyFile      string
+	databaseURL        string
+	adminToken         string
+	adminTokensFile    string
+	policyFile         string
+	otlpTracesEndpoint string
 }
 
 func NewRootCommand() *cobra.Command {
@@ -38,6 +39,7 @@ func NewServerCommand() *cobra.Command {
 	addAdminTokenFlag(command, &options)
 	addAdminTokensFileFlag(command, &options)
 	addPolicyFlag(command, &options)
+	addOTLPTracesEndpointFlag(command, &options)
 	command.Flags().StringVar(&addr, "addr", ":8080", "HTTP listen address")
 	command.AddCommand(newVersionCommand())
 	return command
@@ -109,5 +111,14 @@ func addPolicyFlag(command *cobra.Command, options *rootOptions) {
 		"policy-file",
 		"",
 		"Optional ingestion policy JSON file. Defaults to ARD_POLICY_FILE.",
+	)
+}
+
+func addOTLPTracesEndpointFlag(command *cobra.Command, options *rootOptions) {
+	command.Flags().StringVar(
+		&options.otlpTracesEndpoint,
+		"otlp-traces-endpoint",
+		"",
+		"Optional OTLP/HTTP traces endpoint. Defaults to ARD_OTLP_TRACES_ENDPOINT.",
 	)
 }

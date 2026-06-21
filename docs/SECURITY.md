@@ -131,6 +131,9 @@ Use this document to make secure defaults explicit and legible to agents.
 - Trace IDs and span IDs are correlation metadata, not authentication or authorization
   material. Do not use them as trust signals.
 - Access logs must not include admin bearer tokens or request bodies.
+- Optional OTLP/HTTP trace export is disabled by default. When enabled, exported spans
+  include request metadata such as request ID, trace ID, route, path, status, and client
+  address, but not bearer tokens, request bodies, search text, or artifact contents.
 
 ## Metrics
 

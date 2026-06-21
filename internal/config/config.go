@@ -34,3 +34,10 @@ func PolicyFile(flagValue string) string {
 	}
 	return os.Getenv("ARD_POLICY_FILE")
 }
+
+func OTLPTracesEndpoint(flagValue string) string {
+	if flagValue != "" {
+		return flagValue
+	}
+	return os.Getenv("ARD_OTLP_TRACES_ENDPOINT")
+}

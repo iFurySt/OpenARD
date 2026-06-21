@@ -36,6 +36,9 @@ Define the operational bar for the repository here.
 - Server-side federation, outbound catalog/artifact fetches, source digest verification,
   attestation digest verification, provenance digest verification, and `ardctl admin`
   requests propagate `traceparent` when their context carries one.
+- Optional OTLP/HTTP trace export sends one server span per request when
+  `ARD_OTLP_TRACES_ENDPOINT` or `--otlp-traces-endpoint` is configured. Trace export is
+  disabled by default.
 
 ## Logging
 
@@ -43,6 +46,18 @@ Define the operational bar for the repository here.
 - Access log events include timestamp, level, event name, request ID, trace ID, span ID,
   method, path, status, latency, and client IP.
 - Access logs must not include bearer tokens or request bodies.
+
+## Trace Export
+
+- `ARD_OTLP_TRACES_ENDPOINT` and `--otlp-traces-endpoint` configure an OTLP/HTTP traces
+  endpoint. A base collector URL such as `http://127.0.0.1:4318` is normalized to
+  `/v1/traces`.
+- Exported spans include trace ID, span ID, parent span ID when present, request ID,
+  method, path, route template, status, timestamps, and client address.
+- Trace export errors are ignored by request handlers; collector outages must not make
+  the registry unavailable.
+- Exported traces must not include bearer tokens, request bodies, search text, or remote
+  artifact bodies.
 
 ## Metrics
 
@@ -71,5 +86,5 @@ Define the operational bar for the repository here.
 
 ## Current Gaps
 
-- Trace export, sampling policy, and backend integration are not implemented yet.
-- There is no documented dashboard or incident response workflow yet.
+- Sampling policy is an all-or-nothing endpoint toggle today.
+- There is no documented dashboard, alert, or incident response workflow yet.

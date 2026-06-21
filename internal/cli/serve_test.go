@@ -60,3 +60,26 @@ func TestLoadAdminAuthConfigKeepsFileTokensReloadable(t *testing.T) {
 		t.Fatalf("expected only static legacy token, got %#v", tokens)
 	}
 }
+
+func TestLoadTraceExporterUsesEndpointConfig(t *testing.T) {
+	exporter, err := loadTraceExporter(&rootOptions{
+		otlpTracesEndpoint: "http://127.0.0.1:4318/v1/traces",
+	})
+	if err != nil {
+		t.Fatalf("load trace exporter: %v", err)
+	}
+	if exporter == nil {
+		t.Fatal("expected configured trace exporter")
+	}
+}
+
+func TestLoadTraceExporterUsesEnvironment(t *testing.T) {
+	t.Setenv("ARD_OTLP_TRACES_ENDPOINT", "http://127.0.0.1:4318")
+	exporter, err := loadTraceExporter(&rootOptions{})
+	if err != nil {
+		t.Fatalf("load trace exporter: %v", err)
+	}
+	if exporter == nil {
+		t.Fatal("expected configured trace exporter")
+	}
+}

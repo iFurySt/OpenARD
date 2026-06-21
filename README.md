@@ -159,8 +159,9 @@ score-ranked result merging with opaque cross-registry page tokens, and `pageTok
 pagination for local search, list, review, and audit responses.
 The registry also exposes request correlation, JSON access logs, and
 W3C `traceparent` propagation, plus Prometheus-style `/metrics` with HTTP duration
-histograms and Go runtime gauges. `ardctl admin --request-id` can carry one correlation
-ID across remote artifact fetches and admin API calls.
+histograms and Go runtime gauges. Optional OTLP/HTTP trace export can send server spans
+to an OpenTelemetry collector. `ardctl admin --request-id` can carry one correlation ID
+across remote artifact fetches and admin API calls.
 It builds three entry points: `ard` for the combined toolkit, `ardctl` for CLI/client
 operations, and `ard-server` for the registry server. `make package` creates Linux/macOS
 release archives with embedded version metadata, an SPDX SBOM, and SHA-256 checksums.
@@ -187,6 +188,7 @@ See:
 - [Architecture](docs/ARCHITECTURE.md)
 - [Admin Authorization](docs/ADMIN_AUTH.md)
 - [Deployment](docs/DEPLOYMENT.md)
+- [Observability](docs/OBSERVABILITY.md)
 - [Product Sense](docs/PRODUCT_SENSE.md)
 - [Search](docs/SEARCH.md)
 - [Policy](docs/POLICY.md)

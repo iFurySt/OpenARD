@@ -15,6 +15,7 @@ import (
 	"github.com/ifuryst/ard/internal/pagination"
 	"github.com/ifuryst/ard/internal/policy"
 	"github.com/ifuryst/ard/internal/store"
+	"github.com/ifuryst/ard/internal/traceexporter"
 )
 
 type Server struct {
@@ -22,6 +23,7 @@ type Server struct {
 	adminAuthorizer  *adminAuthorizer
 	policy           *policy.Policy
 	metricsCollector *metricsCollector
+	traceExporter    traceexporter.Exporter
 }
 
 type Options struct {
@@ -29,6 +31,7 @@ type Options struct {
 	AdminTokens     []AdminToken
 	AdminTokensFile string
 	Policy          *policy.Policy
+	TraceExporter   traceexporter.Exporter
 }
 
 func NewRouter(store *store.Store) *gin.Engine {
@@ -50,9 +53,10 @@ func NewRouterWithOptions(store *store.Store, options Options) *gin.Engine {
 		adminAuthorizer:  newAdminAuthorizer(adminTokens, options.AdminTokensFile),
 		policy:           options.Policy,
 		metricsCollector: newMetricsCollector(),
+		traceExporter:    options.TraceExporter,
 	}
 	router := gin.New()
-	router.Use(requestIDMiddleware(), traceContextMiddleware(), metricsMiddleware(server.metricsCollector), jsonAccessLogMiddleware(), gin.Recovery())
+	router.Use(requestIDMiddleware(), traceContextMiddleware(), metricsMiddleware(server.metricsCollector), traceExportMiddleware(server.traceExporter), jsonAccessLogMiddleware(), gin.Recovery())
 
 	router.GET("/health", server.health)
 	router.GET("/metrics", server.metrics)

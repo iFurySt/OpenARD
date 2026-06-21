@@ -4,6 +4,7 @@
 
 | Date | Area | User Impact | Change Summary |
 | --- | --- | --- | --- |
+| 2026-06-21 | Observability | Operators can send registry request traces to an OpenTelemetry collector. | Added optional OTLP/HTTP trace export through `ARD_OTLP_TRACES_ENDPOINT` / `--otlp-traces-endpoint`, documented the local observability workflow, and extended real E2E coverage with a local OTLP capture endpoint. |
 | 2026-06-21 | Testing | Maintainers can catch live artifact drift without making every pull request depend on external services. | Added a manual and weekly GitHub Actions E2E workflow for `make test-e2e`, pinned its actions, and extended workflow invariant checks to require the live artifact gate. |
 | 2026-06-21 | Observability | Operators can inspect Prometheus metrics from `ardctl` without using curl. | Added `ardctl metrics` / `ard metrics` for the public `/metrics` endpoint and exposed `Metrics` in the public Go client, with unit, external SDK, and real E2E coverage. |
 | 2026-06-21 | CLI | Operators can check registry health from `ardctl` without using curl. | Added `ardctl health` / `ard health` for the public `/health` endpoint with text and JSON output, plus unit and real E2E coverage against a live registry. |

@@ -13,9 +13,10 @@ const Header = "traceparent"
 type contextKey struct{}
 
 type TraceContext struct {
-	TraceID string
-	SpanID  string
-	Flags   string
+	TraceID      string
+	SpanID       string
+	ParentSpanID string
+	Flags        string
 }
 
 func (trace TraceContext) String() string {
@@ -31,9 +32,10 @@ func Start(ctx context.Context, incoming string) (context.Context, TraceContext)
 	}
 	if parent, ok := Parse(incoming); ok {
 		trace := TraceContext{
-			TraceID: parent.TraceID,
-			SpanID:  randomHex(8),
-			Flags:   parent.Flags,
+			TraceID:      parent.TraceID,
+			SpanID:       randomHex(8),
+			ParentSpanID: parent.SpanID,
+			Flags:        parent.Flags,
 		}
 		return With(ctx, trace), trace
 	}

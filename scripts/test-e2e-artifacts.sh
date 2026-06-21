@@ -17,6 +17,7 @@ postgres_port="${ARD_E2E_POSTGRES_PORT:-$(pick_port)}"
 fixture_port="${ARD_E2E_FIXTURE_PORT:-$(pick_port)}"
 registry_port="${ARD_E2E_REGISTRY_PORT:-$(pick_port)}"
 upstream_port="${ARD_E2E_UPSTREAM_PORT:-$(pick_port)}"
+otlp_port="${ARD_E2E_OTLP_PORT:-$(pick_port)}"
 admin_token="${ARD_E2E_ADMIN_TOKEN:-test-token}"
 database_url="postgres://ard:ard@127.0.0.1:${postgres_port}/ard?sslmode=disable"
 registry_url="http://127.0.0.1:${registry_port}"
@@ -30,6 +31,7 @@ skill_file="$(mktemp /tmp/ard-e2e-skill-XXXXXX.md)"
 openapi_file="$(mktemp /tmp/ard-e2e-openapi-XXXXXX.json)"
 fixture_server_file="$(mktemp /tmp/ard-e2e-fixture-XXXXXX.py)"
 upstream_server_file="$(mktemp /tmp/ard-e2e-upstream-XXXXXX.py)"
+otlp_server_file="$(mktemp /tmp/ard-e2e-otlp-XXXXXX.py)"
 admin_sdk_workdir="$(mktemp -d /tmp/ard-e2e-admin-sdk-XXXXXX)"
 conformance_bin="${ARD_CONFORMANCE_BIN:-../ard-spec/conformance/bin/conformance-test}"
 
@@ -51,8 +53,12 @@ cleanup() {
     kill "${upstream_pid}" >/dev/null 2>&1 || true
     wait "${upstream_pid}" >/dev/null 2>&1 || true
   fi
+  if [ -n "${otlp_pid:-}" ]; then
+    kill "${otlp_pid}" >/dev/null 2>&1 || true
+    wait "${otlp_pid}" >/dev/null 2>&1 || true
+  fi
   docker rm -f "${postgres_container}" >/dev/null 2>&1 || true
-  rm -f "${export_file}" "${referral_catalog_file}" "${policy_file}" "${source_policy_file}" "${tokens_file}" "${mcp_card_file}" "${skill_file}" "${openapi_file}" "${fixture_server_file}" "${upstream_server_file}"
+  rm -f "${export_file}" "${referral_catalog_file}" "${policy_file}" "${source_policy_file}" "${tokens_file}" "${mcp_card_file}" "${skill_file}" "${openapi_file}" "${fixture_server_file}" "${upstream_server_file}" "${otlp_server_file}"
   rm -rf "${admin_sdk_workdir}"
 }
 trap cleanup EXIT
@@ -202,6 +208,56 @@ handler = partial(Handler, directory=directory)
 ThreadingHTTPServer(("127.0.0.1", int(sys.argv[1])), handler).serve_forever()
 PY
 
+cat >"${otlp_server_file}" <<'PY'
+import json
+import sys
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+
+class Handler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        if self.path == "/health":
+            self.send_response(204)
+            self.end_headers()
+            return
+        self.send_response(404)
+        self.end_headers()
+
+    def do_POST(self):
+        if self.path != "/v1/traces":
+            self.send_response(404)
+            self.end_headers()
+            return
+        length = int(self.headers.get("content-length", "0"))
+        body = self.rfile.read(length) if length else b"{}"
+        payload = json.loads(body.decode("utf-8") or "{}")
+        for resource_span in payload.get("resourceSpans", []):
+            for scope_span in resource_span.get("scopeSpans", []):
+                for span in scope_span.get("spans", []):
+                    attrs = {}
+                    for attr in span.get("attributes", []):
+                        value = attr.get("value", {})
+                        attrs[attr.get("key", "")] = next(iter(value.values()), "")
+                    print(json.dumps({
+                        "event": "otlp_trace",
+                        "traceId": span.get("traceId", ""),
+                        "spanId": span.get("spanId", ""),
+                        "parentSpanId": span.get("parentSpanId", ""),
+                        "path": attrs.get("url.path", ""),
+                        "route": attrs.get("http.route", ""),
+                        "requestId": attrs.get("ard.request_id", ""),
+                        "status": attrs.get("http.response.status_code", "")
+                    }), flush=True)
+        self.send_response(202)
+        self.end_headers()
+
+    def log_message(self, format, *args):
+        return
+
+
+ThreadingHTTPServer(("127.0.0.1", int(sys.argv[1])), Handler).serve_forever()
+PY
+
 docker rm -f "${postgres_container}" >/dev/null 2>&1 || true
 docker run \
   -d \
@@ -240,12 +296,23 @@ for _ in $(seq 1 30); do
 done
 curl -fsS -X POST "http://127.0.0.1:${upstream_port}/search" >/dev/null
 
+python3 "${otlp_server_file}" "${otlp_port}" >/tmp/ard-e2e-otlp.log 2>&1 &
+otlp_pid=$!
+for _ in $(seq 1 30); do
+  if curl -fsS "http://127.0.0.1:${otlp_port}/health" >/dev/null 2>&1; then
+    break
+  fi
+  sleep 0.5
+done
+curl -fsS "http://127.0.0.1:${otlp_port}/health" >/dev/null
+
 bin/ard-server \
   --database-url "${database_url}" \
   --addr "127.0.0.1:${registry_port}" \
   --admin-token "${admin_token}" \
   --admin-tokens-file "${tokens_file}" \
-  --policy-file "${policy_file}" >/tmp/ard-e2e-registry.log 2>&1 &
+  --policy-file "${policy_file}" \
+  --otlp-traces-endpoint "http://127.0.0.1:${otlp_port}" >/tmp/ard-e2e-registry.log 2>&1 &
 registry_pid=$!
 for _ in $(seq 1 30); do
   if curl -fsS "${registry_url}/health" >/dev/null 2>&1; then
@@ -256,6 +323,8 @@ done
 bin/ardctl health --registry-url "${registry_url}" --json >/tmp/ard-e2e-health.json
 grep -q '"status": "ok"' /tmp/ard-e2e-health.json
 grep -q '"entries": 0' /tmp/ard-e2e-health.json
+grep -q '"event": "otlp_trace"' /tmp/ard-e2e-otlp.log
+grep -q '"path": "/health"' /tmp/ard-e2e-otlp.log
 bin/ardctl metrics --registry-url "${registry_url}" >/tmp/ard-e2e-metrics.txt
 grep -q 'ard_http_requests_total' /tmp/ard-e2e-metrics.txt
 grep -q 'ard_runtime_goroutines' /tmp/ard-e2e-metrics.txt

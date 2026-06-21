@@ -66,6 +66,9 @@ func TestCLICommandOmitsServe(t *testing.T) {
 	if command.Flag("admin-tokens-file") != nil {
 		t.Fatal("ardctl should not expose server admin tokens file flag")
 	}
+	if command.Flag("otlp-traces-endpoint") != nil {
+		t.Fatal("ardctl should not expose server OTLP trace exporter flag")
+	}
 }
 
 func TestServerCommandRunsAtRoot(t *testing.T) {
@@ -81,6 +84,9 @@ func TestServerCommandRunsAtRoot(t *testing.T) {
 	}
 	if command.Flag("admin-tokens-file") == nil {
 		t.Fatal("ard-server should expose admin tokens file flag")
+	}
+	if command.Flag("otlp-traces-endpoint") == nil {
+		t.Fatal("ard-server should expose OTLP trace exporter flag")
 	}
 	if _, _, err := command.Find([]string{"version"}); err != nil {
 		t.Fatalf("expected ard-server version command: %v", err)
