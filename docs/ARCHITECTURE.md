@@ -124,8 +124,10 @@ Cobra, Gin, GORM, and Postgres.
   HTTP(S) provenance `sourceId` to carry a pinned source digest. Detached compact JWS
   `trustManifest.signature` values can be verified against explicit Ed25519 trust
   anchors supplied in ard's native format, local JWKS OKP/Ed25519 format, or explicit
-  HTTPS remote JWKS URLs whose host matches the entry trust domain, and strict
-  verification can require every catalog entry to carry a verifiable signature.
+  HTTPS remote JWKS URLs whose host matches the entry trust domain. Opt-in `did:web`,
+  OIDC, SPIFFE bundle, and HTTPS TLS certificate discovery can also provide OKP/Ed25519
+  keys for the same verifier, and strict verification can require every catalog entry to
+  carry a verifiable signature.
 
 ## Intended Repository Shape
 
@@ -321,9 +323,10 @@ conformance tool over older reference implementations. In particular:
   documents and use OKP/Ed25519 `verificationMethod[].publicKeyJwk` keys. Opt-in OIDC
   discovery can resolve HTTPS issuer metadata, validate `issuer`, and use OKP/Ed25519
   keys from `jwks_uri`. Opt-in TLS certificate discovery can use verified HTTPS leaf
-  certificate Ed25519 keys. SPIFFE and non-`did:web` DID discovery are not implemented;
-  custom certificate policy, revocation, and non-Ed25519 certificate keys are out of
-  scope.
+  certificate Ed25519 keys. Opt-in SPIFFE discovery reads `SPIFFE-X509` attestation
+  `uri` values as host-matched HTTPS bundle JWKS endpoints. SPIFFE SVID validation,
+  non-`did:web` DID discovery, custom certificate policy, revocation, and non-Ed25519
+  certificate keys are out of scope.
 - Treat HTTP(S), SPIFFE, and `did:web` `trustManifest.identity` trust-domain matching as
   catalog metadata consistency, not as proof of publisher ownership.
 - Keep `score` strictly as semantic relevance, not a trust or safety signal.
@@ -341,8 +344,8 @@ third-party or generated directory and record the source commit.
 
 ## Open Decisions
 
-- SPIFFE, non-`did:web` DID, custom certificate policy, and broader trust-anchor
-  discovery depth for MVP.
+- SPIFFE SVID validation, non-`did:web` DID, custom certificate policy, and broader
+  trust-anchor discovery depth for MVP.
 - Whether to add an embedded non-Postgres development mode.
 - Whether to vendor selected upstream spec artifacts, use a git submodule, or fetch pinned
   artifacts during development.

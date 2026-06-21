@@ -44,6 +44,7 @@ ard verify catalog ./ai-catalog.json --jws-trust-anchors ./trust-anchors.json
 ard verify catalog ./ai-catalog.json --jws-remote-jwks https://example.com/.well-known/jwks.json
 ard verify catalog ./ai-catalog.json --jws-discover-did-web
 ard verify catalog ./ai-catalog.json --jws-discover-oidc
+ard verify catalog ./ai-catalog.json --jws-discover-spiffe
 ard verify catalog ./ai-catalog.json --jws-discover-tls-cert
 ard verify catalog ./ai-catalog.json --jws-trust-anchors ./trust-anchors.json --require-jws-signatures
 ```
@@ -131,6 +132,16 @@ path. This follows OpenID Connect Discovery's required `issuer` and HTTPS `jwks_
 metadata fields:
 https://openid.net/specs/openid-connect-discovery-1_0.html
 
+`--jws-discover-spiffe` performs explicit automatic key discovery for entries whose
+signed `trustManifest.identity` is a SPIFFE ID. It reads
+`trustManifest.attestations[]` items with `type: "SPIFFE-X509"`, treats their HTTPS
+`uri` values as SPIFFE bundle JWKS endpoints, requires each bundle URI host to match the
+SPIFFE trust domain, accepts only OKP/Ed25519 keys, and then runs the same detached JWS
+verification path. This follows the ARD spec examples that publish SPIFFE bundle
+material through `trustManifest.attestations[].uri`; it does not validate an X.509-SVID
+chain, workload selector, federation bundle sequence, revocation state, or SPIFFE
+Workload API state.
+
 `--jws-discover-tls-cert` performs explicit key discovery from the HTTPS
 `trustManifest.identity` TLS leaf certificate. It uses the normal Go TLS verifier for
 the HTTPS request, requires the verified leaf certificate public key to be Ed25519, and
@@ -188,6 +199,9 @@ certificate keys.
 - Implemented: opt-in OpenID Connect issuer discovery through
   `ard verify catalog --jws-discover-oidc`, validating the discovered `issuer` and
   fetching OKP/Ed25519 keys from `jwks_uri`.
+- Implemented: opt-in SPIFFE bundle JWKS key discovery through
+  `ard verify catalog --jws-discover-spiffe`, reading `SPIFFE-X509` attestation `uri`
+  values and requiring the bundle URI host to match the SPIFFE trust domain.
 - Implemented: opt-in HTTPS TLS leaf certificate key discovery through
   `ard verify catalog --jws-discover-tls-cert` for verified Ed25519 leaf certificates.
 - Implemented: strict catalog signature requirements with
@@ -214,11 +228,12 @@ sources only. It does not resolve URN source identifiers, prove lineage truth, p
 published the source, or decide whether a provenance relation is semantically valid.
 
 JWS verification proves the configured, explicitly fetched, `did:web`-discovered,
-OIDC-discovered, or TLS-certificate-discovered Ed25519 key signed the trust manifest
-bytes that `ard` verified. `did:web` discovery proves that the key was advertised by the
-fetched DID document at verification time. OIDC discovery proves that the key was
-advertised by the issuer's OpenID Provider metadata and JWKS at verification time. TLS
-certificate discovery proves that the verified HTTPS endpoint presented the Ed25519 leaf
-certificate key at verification time. None of these paths prove claim truth, validate
-SPIFFE identities, apply custom certificate policy, or decide whether the signed claims
-are true.
+OIDC-discovered, SPIFFE-bundle-discovered, or TLS-certificate-discovered Ed25519 key
+signed the trust manifest bytes that `ard` verified. `did:web` discovery proves that the
+key was advertised by the fetched DID document at verification time. OIDC discovery
+proves that the key was advertised by the issuer's OpenID Provider metadata and JWKS at
+verification time. SPIFFE bundle discovery proves that the key was advertised by the
+host-matched SPIFFE bundle URI at verification time. TLS certificate discovery proves
+that the verified HTTPS endpoint presented the Ed25519 leaf certificate key at
+verification time. None of these paths prove claim truth, validate SPIFFE SVID chains,
+apply custom certificate policy, or decide whether the signed claims are true.

@@ -4,6 +4,7 @@
 
 | Date | Area | User Impact | Change Summary |
 | --- | --- | --- | --- |
+| 2026-06-21 | Security | Enterprises can verify signed SPIFFE trust metadata from host-matched bundle JWKS endpoints. | Added `ard verify catalog --jws-discover-spiffe` to read `SPIFFE-X509` attestation `uri` values, require the bundle URI host to match the SPIFFE trust domain, extract OKP/Ed25519 keys, and reuse detached JWS verification. |
 | 2026-06-21 | Security | Enterprises can verify signed HTTPS trust metadata against a verified TLS leaf certificate key. | Added `ard verify catalog --jws-discover-tls-cert` to use normal TLS verification, require an Ed25519 leaf certificate public key, and reuse detached JWS verification. |
 | 2026-06-21 | Security | Enterprises can verify signed HTTPS issuer trust metadata through standard OIDC discovery. | Added `ard verify catalog --jws-discover-oidc` to fetch OpenID Provider metadata, validate `issuer`, fetch `jwks_uri`, extract OKP/Ed25519 keys, and reuse detached JWS verification. |
 | 2026-06-21 | Security | Enterprises can verify signed `did:web` trust metadata without manually supplying a JWKS URL. | Added `ard verify catalog --jws-discover-did-web` to resolve `did:web` DID documents over HTTPS, extract OKP/Ed25519 `verificationMethod[].publicKeyJwk` keys, and reuse detached JWS verification with DID document id/controller checks. |

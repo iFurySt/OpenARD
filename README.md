@@ -67,6 +67,7 @@ ard verify catalog ./ai-catalog.json --jws-trust-anchors ./trust-anchors.json
 ard verify catalog ./ai-catalog.json --jws-remote-jwks https://example.com/.well-known/jwks.json
 ard verify catalog ./ai-catalog.json --jws-discover-did-web
 ard verify catalog ./ai-catalog.json --jws-discover-oidc
+ard verify catalog ./ai-catalog.json --jws-discover-spiffe
 ard verify catalog ./ai-catalog.json --jws-discover-tls-cert
 ard verify catalog ./ai-catalog.json --jws-trust-anchors ./trust-anchors.json --require-jws-signatures
 ```
@@ -104,6 +105,7 @@ bin/ard verify catalog ./ai-catalog.json --jws-trust-anchors ./trust-anchors.jso
 bin/ard verify catalog ./ai-catalog.json --jws-remote-jwks https://example.com/.well-known/jwks.json
 bin/ard verify catalog ./ai-catalog.json --jws-discover-did-web
 bin/ard verify catalog ./ai-catalog.json --jws-discover-oidc
+bin/ard verify catalog ./ai-catalog.json --jws-discover-spiffe
 bin/ard verify catalog ./ai-catalog.json --jws-discover-tls-cert
 bin/ard --database-url "$DATABASE_URL" crawl https://example.com/
 bin/ardctl --database-url "$DATABASE_URL" export catalog -o ai-catalog.json

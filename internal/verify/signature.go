@@ -79,6 +79,11 @@ type oidcProviderMetadata struct {
 	JWKSURI string `json:"jwks_uri"`
 }
 
+type trustManifestAttestation struct {
+	Type string `json:"type"`
+	URI  string `json:"uri"`
+}
+
 type jwsProtectedHeader struct {
 	Algorithm string `json:"alg"`
 	KeyID     string `json:"kid,omitempty"`
@@ -228,6 +233,44 @@ func DiscoverTLSCertificateTrustAnchors(ctx context.Context, catalog ard.Catalog
 	return anchors, nil
 }
 
+func DiscoverSPIFFETrustAnchors(ctx context.Context, catalog ard.Catalog, client *http.Client) (TrustAnchors, error) {
+	if client == nil {
+		client = &http.Client{Timeout: 20 * time.Second}
+	}
+	anchorSets := []TrustAnchors{}
+	seenBundles := map[string]struct{}{}
+	for _, entry := range catalog.Entries {
+		signature := trustString(entry.TrustManifest, "signature")
+		if signature == "" {
+			continue
+		}
+		identity := trustString(entry.TrustManifest, "identity")
+		trustDomain, ok, err := spiffeTrustDomain(identity)
+		if err != nil {
+			return TrustAnchors{}, fmt.Errorf("%s: %w", entry.Identifier, err)
+		}
+		if !ok {
+			continue
+		}
+		bundleURLs, err := spiffeBundleURLs(entry.TrustManifest, trustDomain)
+		if err != nil {
+			return TrustAnchors{}, fmt.Errorf("%s: %w", entry.Identifier, err)
+		}
+		for _, bundleURL := range bundleURLs {
+			if _, seen := seenBundles[bundleURL]; seen {
+				continue
+			}
+			seenBundles[bundleURL] = struct{}{}
+			anchors, err := loadRemoteTrustAnchors(ctx, bundleURL, client, trustDomain)
+			if err != nil {
+				return TrustAnchors{}, fmt.Errorf("%s: load SPIFFE bundle %s: %w", entry.Identifier, bundleURL, err)
+			}
+			anchorSets = append(anchorSets, anchors)
+		}
+	}
+	return MergeTrustAnchors(anchorSets...), nil
+}
+
 func loadTLSCertificateTrustAnchor(ctx context.Context, identityURL *url.URL, keyID string, client *http.Client) (TrustAnchorKey, error) {
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, identityURL.String(), nil)
 	if err != nil {
@@ -318,6 +361,59 @@ func httpsTrustIdentityURL(identity string) (*url.URL, bool, error) {
 		return nil, true, errors.New("HTTPS trustManifest.identity must not include a fragment")
 	}
 	return parsed, true, nil
+}
+
+func spiffeTrustDomain(identity string) (string, bool, error) {
+	parsed, err := url.Parse(strings.TrimSpace(identity))
+	if err != nil {
+		return "", false, err
+	}
+	if parsed.Scheme != "spiffe" {
+		return "", false, nil
+	}
+	if parsed.Hostname() == "" {
+		return "", true, errors.New("SPIFFE trustManifest.identity must include a trust domain")
+	}
+	return parsed.Hostname(), true, nil
+}
+
+func spiffeBundleURLs(trustManifest map[string]any, trustDomain string) ([]string, error) {
+	rawAttestations, ok := trustManifest["attestations"]
+	if !ok {
+		return nil, errors.New(`SPIFFE trustManifest.attestations[] with type "SPIFFE-X509" and uri is required`)
+	}
+	data, err := json.Marshal(rawAttestations)
+	if err != nil {
+		return nil, err
+	}
+	var attestations []trustManifestAttestation
+	if err := json.Unmarshal(data, &attestations); err != nil {
+		return nil, fmt.Errorf("trustManifest.attestations: %w", err)
+	}
+	bundleURLs := []string{}
+	for index, attestation := range attestations {
+		if !strings.EqualFold(strings.TrimSpace(attestation.Type), "SPIFFE-X509") {
+			continue
+		}
+		if strings.TrimSpace(attestation.URI) == "" {
+			return nil, fmt.Errorf("trustManifest.attestations[%d].uri is required for SPIFFE-X509", index)
+		}
+		parsed, err := url.Parse(attestation.URI)
+		if err != nil {
+			return nil, fmt.Errorf("trustManifest.attestations[%d].uri: %w", index, err)
+		}
+		if parsed.Scheme != "https" || parsed.Hostname() == "" {
+			return nil, fmt.Errorf("trustManifest.attestations[%d].uri must be absolute HTTPS for SPIFFE-X509", index)
+		}
+		if !strings.EqualFold(parsed.Hostname(), trustDomain) {
+			return nil, fmt.Errorf("trustManifest.attestations[%d].uri host %q must match SPIFFE trust domain %q", index, parsed.Hostname(), trustDomain)
+		}
+		bundleURLs = append(bundleURLs, parsed.String())
+	}
+	if len(bundleURLs) == 0 {
+		return nil, errors.New(`SPIFFE trustManifest.attestations[] with type "SPIFFE-X509" and uri is required`)
+	}
+	return bundleURLs, nil
 }
 
 func DiscoverDIDWebTrustAnchors(ctx context.Context, catalog ard.Catalog, client *http.Client) (TrustAnchors, error) {

@@ -288,6 +288,78 @@ func TestDiscoverTLSCertificateTrustAnchorsRejectsNonEd25519Leaf(t *testing.T) {
 	}
 }
 
+func TestDiscoverSPIFFETrustAnchorsVerifiesBundleKey(t *testing.T) {
+	publicKey, privateKey, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatalf("generate key: %v", err)
+	}
+	server := httptest.NewTLSServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != "/.well-known/spiffe/jwks" {
+			t.Fatalf("unexpected SPIFFE bundle path: %s", request.URL.Path)
+		}
+		response.Header().Set("Content-Type", "application/jwk-set+json")
+		_, _ = response.Write([]byte(`{
+  "keys": [
+    {
+      "kty": "OKP",
+      "crv": "Ed25519",
+      "kid": "spiffe-ed25519",
+      "alg": "EdDSA",
+      "x": "` + base64.RawURLEncoding.EncodeToString(publicKey) + `"
+    }
+  ]
+}`))
+	}))
+	t.Cleanup(server.Close)
+
+	trustDomain := mustURLHost(t, server.URL)
+	trustManifest := map[string]any{
+		"identity":     "spiffe://" + trustDomain + "/ns/default/sa/weather",
+		"identityType": "spiffe",
+		"attestations": []map[string]any{
+			{
+				"type": "SPIFFE-X509",
+				"uri":  server.URL + "/.well-known/spiffe/jwks",
+			},
+		},
+	}
+	trustManifest["signature"] = testDetachedJWS(t, "spiffe-ed25519", trustManifest, privateKey)
+	catalog := signedCatalog(trustManifest)
+	anchors, err := DiscoverSPIFFETrustAnchors(context.Background(), catalog, server.Client())
+	if err != nil {
+		t.Fatalf("discover SPIFFE trust anchors: %v", err)
+	}
+	results, err := VerifySignatures(catalog, SignatureOptions{TrustAnchors: anchors})
+	if err != nil {
+		t.Fatalf("verify signature with SPIFFE bundle trust anchor: %v", err)
+	}
+	if len(results) != 1 || !results[0].Verified || results[0].KeyID != "spiffe-ed25519" || results[0].KeySource != server.URL+"/.well-known/spiffe/jwks" {
+		t.Fatalf("unexpected results: %#v", results)
+	}
+}
+
+func TestDiscoverSPIFFETrustAnchorsRejectsBundleHostMismatch(t *testing.T) {
+	_, privateKey, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatalf("generate key: %v", err)
+	}
+	trustManifest := map[string]any{
+		"identity":     "spiffe://example.com/ns/default/sa/weather",
+		"identityType": "spiffe",
+		"attestations": []map[string]any{
+			{
+				"type": "SPIFFE-X509",
+				"uri":  "https://evil.example/.well-known/spiffe/jwks",
+			},
+		},
+	}
+	trustManifest["signature"] = testDetachedJWS(t, "spiffe-ed25519", trustManifest, privateKey)
+	_, err = DiscoverSPIFFETrustAnchors(context.Background(), signedCatalog(trustManifest), nil)
+	if err == nil || !strings.Contains(err.Error(), `uri host "evil.example" must match SPIFFE trust domain "example.com"`) {
+		t.Fatalf("expected SPIFFE bundle host mismatch, got %v", err)
+	}
+}
+
 func TestOIDCConfigurationURL(t *testing.T) {
 	tests := []struct {
 		identity string
