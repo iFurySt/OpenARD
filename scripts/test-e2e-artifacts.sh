@@ -253,7 +253,9 @@ for _ in $(seq 1 30); do
   fi
   sleep 0.5
 done
-curl -fsS "${registry_url}/health" >/dev/null
+bin/ardctl health --registry-url "${registry_url}" --json >/tmp/ard-e2e-health.json
+grep -q '"status": "ok"' /tmp/ard-e2e-health.json
+grep -q '"entries": 0' /tmp/ard-e2e-health.json
 
 fetch_with_retry "${mcp_card_url}" "${mcp_card_file}"
 if ! fetch_with_retry "${skill_url}" "${skill_file}"; then

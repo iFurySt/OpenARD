@@ -34,6 +34,7 @@ ard add a2a https://example.com/.well-known/agent-card.json
 ard add skill https://example.com/skills/open-browser-use/SKILL.md
 ard add openapi https://example.com/openapi.json
 ard crawl
+ardctl health --registry-url https://registry.example.com --json
 ardctl list --kind mcp
 ardctl list --filter "publisherId = 'github.com'" --order-by "displayName DESC"
 ardctl list --filter "tags = 'skill' AND metadata.adapter = 'skill'"
@@ -103,8 +104,8 @@ bin/ardctl --database-url "$DATABASE_URL" export catalog -o ai-catalog.json
 bin/ard-server --database-url "$DATABASE_URL" --admin-token "$ARD_ADMIN_TOKEN"
 
 # terminal 2
+bin/ardctl health --registry-url http://127.0.0.1:8080 --json
 bin/ardctl browse --registry-url http://127.0.0.1:8080 --filter "type = 'application/mcp-server-card+json'" --json
-curl -s http://127.0.0.1:8080/health
 bin/ardctl search "weather forecast" --kind mcp --json
 bin/ardctl admin list --admin-token "$ARD_ADMIN_TOKEN"
 ```

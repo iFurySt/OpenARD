@@ -6,6 +6,8 @@ Define the operational bar for the repository here.
 
 - `GET /health` returns registry process health, active entry count, and build metadata
   fields: `version`, `commit`, and `buildDate`.
+- `ardctl health --registry-url <url>` calls the public health endpoint and supports
+  `--json` for automation.
 - Health checks must not require admin authentication.
 
 ## Request Correlation

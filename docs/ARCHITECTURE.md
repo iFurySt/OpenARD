@@ -8,8 +8,8 @@ Cobra, Gin, GORM, and Postgres.
 - Registry server: self-hosted ARD registry exposing discovery, search, health, and
   catalog endpoints through Gin, plus optional token-protected admin routes.
 - CLI: Cobra operational entry point for `serve`, `add catalog`, `add mcp`, `add a2a`,
-  `add skill`, `add openapi`, `admin`, `browse`, `crawl`, `export catalog`, `list`,
-  `remove`, `verify catalog`, `version`, and `search` today.
+  `add skill`, `add openapi`, `admin`, `browse`, `crawl`, `export catalog`, `health`,
+  `list`, `remove`, `verify catalog`, `version`, and `search` today.
 - Entrypoints: `cmd/ard` ships the combined toolkit, `cmd/ardctl` ships client and
   management operations without server startup, and `cmd/ard-server` ships a dedicated
   registry server binary.
@@ -264,8 +264,9 @@ changing HTTP contracts.
   `make test-public-go-client` verifies these public packages from an external Go
   module.
 - CLI equivalents: `serve`, `add catalog`, `add mcp`, `add a2a`, `add skill`,
-  `add openapi`, `crawl`, `admin`, `browse`, `export catalog`, `list`, `remove`,
-  `verify catalog`, `version`, and `search` are implemented. `ardctl browse` calls public
+  `add openapi`, `crawl`, `admin`, `browse`, `export catalog`, `health`, `list`,
+  `remove`, `verify catalog`, `version`, and `search` are implemented. `ardctl health`
+  calls public `/health` without admin credentials. `ardctl browse` calls public
   `/agents` with filter/order/pagination options. `ardctl list --filter` and
   `--order-by` reuse the same deterministic browse parser as public `/agents`.
   `ardctl admin status` manages remote entry lifecycle state, `ardctl admin review

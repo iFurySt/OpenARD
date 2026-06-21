@@ -42,6 +42,9 @@ func TestCLICommandOmitsServe(t *testing.T) {
 	if _, _, err := command.Find([]string{"search"}); err != nil {
 		t.Fatalf("expected ardctl search command: %v", err)
 	}
+	if _, _, err := command.Find([]string{"health"}); err != nil {
+		t.Fatalf("expected ardctl health command: %v", err)
+	}
 	if _, _, err := command.Find([]string{"version"}); err != nil {
 		t.Fatalf("expected ardctl version command: %v", err)
 	}
@@ -81,6 +84,9 @@ func TestServerCommandRunsAtRoot(t *testing.T) {
 	}
 	if found, _, err := command.Find([]string{"admin"}); err == nil && found.Name() == "admin" {
 		t.Fatal("ard-server should not expose management subcommands")
+	}
+	if found, _, err := command.Find([]string{"health"}); err == nil && found.Name() == "health" {
+		t.Fatal("ard-server should not expose client health subcommands")
 	}
 }
 
