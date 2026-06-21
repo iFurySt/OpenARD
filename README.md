@@ -167,11 +167,11 @@ operations, and `ard-server` for the registry server. `make package` creates Lin
 release archives with embedded version metadata, an SPDX SBOM, and SHA-256 checksums.
 `ard version`, `ardctl version`, `ard-server --version`, startup logs, and `/health`
 expose the build version, commit, and build date. CI runs formatting checks, workflow
-checks, tests, public Go client import checks, builds, release packaging, and Postgres
-integration tests. A separate manual and weekly E2E workflow runs the live artifact
-gate without putting external network dependencies on every pull request. Pushing a
-`v*` tag runs the release workflow, publishes the release archives, and generates
-GitHub artifact attestations for provenance plus SBOM.
+checks, public surface checks, tests, public Go client import checks, builds, release
+packaging, and Postgres integration tests. A separate manual and weekly E2E workflow
+runs the live artifact gate without putting external network dependencies on every pull
+request. Pushing a `v*` tag runs the release workflow, publishes the release archives,
+and generates GitHub artifact attestations for provenance plus SBOM.
 `make test-e2e` runs the real artifact onboarding flow with live MCP, Skill, OpenAPI,
 policy-gate examples, a local upstream registry for auto federation, and an external
 Go admin SDK check against the live registry.

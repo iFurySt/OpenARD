@@ -142,6 +142,8 @@ Cobra, Gin, GORM, and Postgres.
 - `internal/config/`: environment and CLI config helpers.
 - `internal/tools/sbom/`: repository-native SPDX SBOM generator used by release
   packaging.
+- `internal/tools/publicsurface/`: repository-native public API and CLI surface checker
+  for pre-release compatibility gates.
 - `internal/tools/workflowcheck/`: repository-native GitHub Actions workflow guard for
   CI, E2E, and release automation invariants.
 - `pkg/ard/`: public ARD model aliases and validation helpers for Go consumers.

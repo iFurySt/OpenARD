@@ -48,6 +48,8 @@ This document defines the default collaboration model for an agent-first reposit
 - `make package` builds versioned Linux/macOS binary archives for all entrypoints and
   writes an SPDX SBOM plus SHA-256 checksums under `dist/`; CI runs it as a release
   packaging gate.
+- `make check-public-surface` validates the expected exported Go SDK symbols and CLI
+  command/flag surface before public releases.
 - `make check-workflows` validates expected CI, E2E, and release workflow invariants.
 - Pushing a `v*` tag runs the release workflow, publishes `dist/` artifacts to GitHub
   Releases, and generates signed GitHub artifact attestations for provenance plus SBOM.

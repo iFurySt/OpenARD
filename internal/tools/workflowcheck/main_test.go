@@ -91,6 +91,39 @@ jobs:
 	}
 }
 
+func TestCIWorkflowShape(t *testing.T) {
+	t.Parallel()
+
+	root := parseWorkflow(t, `
+name: CI
+jobs:
+  go:
+    steps:
+      - run: make check-public-surface
+      - run: make package
+`)
+
+	if err := checkCI(root); err != nil {
+		t.Fatalf("expected CI workflow to pass: %v", err)
+	}
+}
+
+func TestCIWorkflowRequiresPublicSurfaceCheck(t *testing.T) {
+	t.Parallel()
+
+	root := parseWorkflow(t, `
+name: CI
+jobs:
+  go:
+    steps:
+      - run: make package
+`)
+
+	if err := checkCI(root); err == nil || !strings.Contains(err.Error(), "check-public-surface") {
+		t.Fatalf("expected missing public surface check error, got %v", err)
+	}
+}
+
 func TestReleaseWorkflowRequiresSBOMAttestation(t *testing.T) {
 	t.Parallel()
 

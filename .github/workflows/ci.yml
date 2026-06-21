@@ -44,6 +44,9 @@ jobs:
       - name: Check workflows
         run: make check-workflows
 
+      - name: Check public surface
+        run: make check-public-surface
+
       - name: Test
         run: make test
 

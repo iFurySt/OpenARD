@@ -99,6 +99,9 @@ func checkCI(root *yaml.Node) error {
 	if !hasRunStep(steps, "make package") {
 		return fmt.Errorf("CI must run make package")
 	}
+	if !hasRunStep(steps, "make check-public-surface") {
+		return fmt.Errorf("CI must run make check-public-surface")
+	}
 	return nil
 }
 

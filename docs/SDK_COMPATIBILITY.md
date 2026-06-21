@@ -50,7 +50,13 @@ not have to depend on an unstable parsed metrics model.
 
 ## Validation
 
+`make check-public-surface` compares the expected exported `pkg/ard` and `pkg/client`
+symbols plus the expected `ard`, `ardctl`, and `ard-server` command/flag surfaces
+against the current source. Treat failures as a release-compatibility review point:
+either restore the expected surface or update this document, release notes, and the
+checker intentionally.
+
 `make test-public-go-client` creates a temporary external module, imports the public SDK,
 and exercises the public discovery, catalog, health, metrics, explore, admin
 list/upsert/status, review, audit, delete, validation helper, publisher helper, and
-`HTTPError` surfaces. CI runs this check on every push and pull request.
+`HTTPError` surfaces. CI runs both checks on every push and pull request.
