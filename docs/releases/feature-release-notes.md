@@ -4,6 +4,7 @@
 
 | Date | Area | User Impact | Change Summary |
 | --- | --- | --- | --- |
+| 2026-06-21 | Release | Maintainers have a concise gate for deciding when a public tag is ready. | Added a pre-tag checklist covering version choice, release notes, local release dry run, live E2E, CI status, public surface review, and post-release artifact verification. |
 | 2026-06-21 | Release | Maintainers can rehearse the public release path before creating a tag. | Added `VERSION=v0.1.0 make release-dry-run` to validate release version shape, formatting, public SDK/CLI surface, workflow invariants, external Go SDK import coverage, package checksums, archive contents, and packaged binary version metadata without publishing. |
 | 2026-06-21 | SDK | Adopters get a stricter pre-release guard for accidental Go SDK or CLI surface drift. | Added `make check-public-surface` to validate exported `pkg/ard` and `pkg/client` symbols plus `ard`, `ardctl`, and `ard-server` command/flag surfaces, and wired it into CI and workflow invariant checks. |
 | 2026-06-21 | Observability | Operators can send registry request traces to an OpenTelemetry collector. | Added optional OTLP/HTTP trace export through `ARD_OTLP_TRACES_ENDPOINT` / `--otlp-traces-endpoint`, documented the local observability workflow, and extended real E2E coverage with a local OTLP capture endpoint. |

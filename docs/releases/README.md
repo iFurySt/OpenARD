@@ -1,6 +1,7 @@
 # Release Notes Guide
 
 Use `feature-release-notes.md` for user-visible launches, improvements, and fixes.
+Use `PRE_TAG_CHECKLIST.md` before creating a public `v*` tag.
 
 ## Rules
 

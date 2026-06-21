@@ -70,6 +70,9 @@ Use `PLATFORMS` to narrow local iterations while preserving the same package pat
 VERSION=v0.1.0 PLATFORMS="$(go env GOOS)/$(go env GOARCH)" make release-dry-run
 ```
 
+Use [docs/releases/PRE_TAG_CHECKLIST.md](releases/PRE_TAG_CHECKLIST.md) for the full
+public tag review.
+
 ## Release Publishing
 
 Push a `v*` tag to publish a GitHub release:

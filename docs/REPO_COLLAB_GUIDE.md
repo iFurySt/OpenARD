@@ -56,7 +56,8 @@ This document defines the default collaboration model for an agent-first reposit
   package checksums, archive contents, and local packaged binary version metadata.
 - Pushing a `v*` tag runs the release workflow, publishes `dist/` artifacts to GitHub
   Releases, and generates signed GitHub artifact attestations for provenance plus SBOM.
-  Local container, binary archive, checksum, and release workflows are documented in
+  Run `docs/releases/PRE_TAG_CHECKLIST.md` before creating a public tag. Local
+  container, binary archive, checksum, and release workflows are documented in
   `docs/DEPLOYMENT.md`.
 
 ## Configuration Hygiene
