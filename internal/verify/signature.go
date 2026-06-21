@@ -1,20 +1,30 @@
 package verify
 
 import (
+	"context"
 	"crypto/ed25519"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
+	"net/url"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/ifuryst/ard/internal/ard"
+	"github.com/ifuryst/ard/internal/requestid"
+	"github.com/ifuryst/ard/internal/tracecontext"
 )
+
+const maxRemoteJWKSBytes = 256 << 10
 
 type SignatureResult struct {
 	Identifier string `json:"identifier"`
 	KeyID      string `json:"keyId,omitempty"`
+	KeySource  string `json:"keySource,omitempty"`
 	Algorithm  string `json:"algorithm"`
 	Verified   bool   `json:"verified"`
 }
@@ -29,10 +39,12 @@ type TrustAnchors struct {
 }
 
 type TrustAnchorKey struct {
-	KeyID     string `json:"kid"`
-	Algorithm string `json:"alg"`
-	PublicKey string `json:"publicKey"`
-	parsedKey ed25519.PublicKey
+	KeyID      string `json:"kid"`
+	Algorithm  string `json:"alg"`
+	PublicKey  string `json:"publicKey"`
+	sourceURL  string
+	sourceHost string
+	parsedKey  ed25519.PublicKey
 }
 
 type rawTrustAnchorDocument struct {
@@ -67,6 +79,67 @@ func LoadTrustAnchors(path string) (TrustAnchors, error) {
 		return TrustAnchors{}, err
 	}
 	return anchors, nil
+}
+
+func LoadRemoteTrustAnchors(ctx context.Context, jwksURL string, client *http.Client) (TrustAnchors, error) {
+	parsed, err := url.Parse(jwksURL)
+	if err != nil {
+		return TrustAnchors{}, err
+	}
+	if parsed.Scheme != "https" || parsed.Hostname() == "" {
+		return TrustAnchors{}, errors.New("remote JWKS URL must be absolute HTTPS")
+	}
+	if client == nil {
+		client = &http.Client{Timeout: 20 * time.Second}
+	}
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, jwksURL, nil)
+	if err != nil {
+		return TrustAnchors{}, err
+	}
+	request.Header.Set("Accept", "application/jwk-set+json, application/json")
+	request.Header.Set("User-Agent", "ard/0.1")
+	requestid.SetHeader(request.Header, ctx)
+	tracecontext.SetHeader(request.Header, ctx)
+	response, err := client.Do(request)
+	if err != nil {
+		return TrustAnchors{}, err
+	}
+	defer response.Body.Close()
+	if response.StatusCode < 200 || response.StatusCode > 299 {
+		return TrustAnchors{}, fmt.Errorf("remote JWKS request failed with HTTP %d", response.StatusCode)
+	}
+	limited := io.LimitReader(response.Body, maxRemoteJWKSBytes+1)
+	data, err := io.ReadAll(limited)
+	if err != nil {
+		return TrustAnchors{}, err
+	}
+	if len(data) > maxRemoteJWKSBytes {
+		return TrustAnchors{}, fmt.Errorf("remote JWKS exceeds %d bytes", maxRemoteJWKSBytes)
+	}
+	anchors, err := parseTrustAnchors(data)
+	if err != nil {
+		return TrustAnchors{}, err
+	}
+	for index := range anchors.Keys {
+		anchors.Keys[index].sourceURL = jwksURL
+		anchors.Keys[index].sourceHost = parsed.Hostname()
+	}
+	if err := anchors.prepare(); err != nil {
+		return TrustAnchors{}, err
+	}
+	return anchors, nil
+}
+
+func MergeTrustAnchors(anchorSets ...TrustAnchors) TrustAnchors {
+	total := 0
+	for _, anchors := range anchorSets {
+		total += len(anchors.Keys)
+	}
+	merged := TrustAnchors{Keys: make([]TrustAnchorKey, 0, total)}
+	for _, anchors := range anchorSets {
+		merged.Keys = append(merged.Keys, anchors.Keys...)
+	}
+	return merged
 }
 
 func parseTrustAnchors(data []byte) (TrustAnchors, error) {
@@ -186,10 +259,16 @@ func verifyEntrySignature(entry ard.CatalogEntry, anchors TrustAnchors) (Signatu
 	if err != nil {
 		return SignatureResult{}, fmt.Errorf("%s: %w", entry.Identifier, err)
 	}
+	if key.sourceHost != "" {
+		if err := requireRemoteKeyTrustDomain(entry, key); err != nil {
+			return SignatureResult{}, err
+		}
+	}
 	verified := ed25519.Verify(key.parsedKey, signingInput, rawSignature)
 	result := SignatureResult{
 		Identifier: entry.Identifier,
 		KeyID:      key.KeyID,
+		KeySource:  key.sourceURL,
 		Algorithm:  header.Algorithm,
 		Verified:   verified,
 	}
@@ -212,6 +291,50 @@ func (anchors TrustAnchors) key(keyID string) (TrustAnchorKey, error) {
 		}
 	}
 	return TrustAnchorKey{}, fmt.Errorf("no trust anchor found for kid %q", keyID)
+}
+
+func requireRemoteKeyTrustDomain(entry ard.CatalogEntry, key TrustAnchorKey) error {
+	identity := trustString(entry.TrustManifest, "identity")
+	trustDomain, ok := trustIdentityDomain(identity)
+	if !ok {
+		return fmt.Errorf("%s: remote JWKS key %q requires HTTP(S), SPIFFE, or did:web trustManifest.identity", entry.Identifier, key.KeyID)
+	}
+	if !strings.EqualFold(trustDomain, key.sourceHost) {
+		return fmt.Errorf("%s: remote JWKS host %q must match trustManifest.identity trust domain %q", entry.Identifier, key.sourceHost, trustDomain)
+	}
+	return nil
+}
+
+func trustIdentityDomain(identity string) (string, bool) {
+	parsed, err := url.Parse(identity)
+	if err == nil {
+		switch parsed.Scheme {
+		case "http", "https", "spiffe":
+			if parsed.Hostname() != "" {
+				return parsed.Hostname(), true
+			}
+		case "did":
+			method, methodID, ok := didParts(identity)
+			if ok && method == "web" {
+				domain, _, _ := strings.Cut(methodID, ":")
+				if unescaped, err := url.PathUnescape(domain); err == nil && unescaped != "" {
+					return unescaped, true
+				}
+				if domain != "" {
+					return domain, true
+				}
+			}
+		}
+	}
+	return "", false
+}
+
+func didParts(identity string) (string, string, bool) {
+	parts := strings.SplitN(identity, ":", 3)
+	if len(parts) != 3 || parts[0] != "did" || parts[1] == "" || parts[2] == "" {
+		return "", "", false
+	}
+	return parts[1], parts[2], true
 }
 
 func detachedCompactJWS(signature string, trustManifest map[string]any) (jwsProtectedHeader, []byte, []byte, error) {

@@ -4,6 +4,7 @@
 
 | Date | Area | User Impact | Change Summary |
 | --- | --- | --- | --- |
+| 2026-06-21 | Security | Enterprises can verify signed trust metadata against explicitly hosted JWKS keys. | Added `ard verify catalog --jws-remote-jwks` for HTTPS JWKS OKP/Ed25519 signature trust anchors, with remote key use constrained to entries whose `trustManifest.identity` trust domain matches the JWKS host. |
 | 2026-06-21 | Governance | Teams can check policy compliance in CI before importing a catalog. | Added `ard verify catalog --policy-file` support through the existing root policy flag, returning policy evaluations in JSON output and failing on policy denial without opening the database. |
 | 2026-06-21 | Governance | Enterprises can block untrusted catalog entries before they reach the registry. | Added ingestion policy gates for `requireTrustManifest`, `requireSourceDigestForURLArtifacts`, and `requireJWSSignature`, with unit, Postgres admin API, and real live MCP E2E coverage. |
 | 2026-06-21 | Security | Enterprises can verify that retrievable provenance sources have not changed. | Added `ard verify catalog --provenance-digests` and `--require-provenance-digests` to fetch HTTP(S) provenance `sourceId` values, verify pinned `trustManifest.provenance[].sourceDigest` values, and optionally require every HTTP(S) provenance source to be pinned. |

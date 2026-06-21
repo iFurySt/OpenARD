@@ -274,6 +274,38 @@ func TestVerifyCatalogVerifiesJWSSignatures(t *testing.T) {
 	}
 }
 
+func TestVerifyCatalogRejectsNonHTTPSRemoteJWKS(t *testing.T) {
+	tempDir := t.TempDir()
+	catalogPath := filepath.Join(tempDir, "ai-catalog.json")
+	if err := os.WriteFile(catalogPath, []byte(`{
+  "specVersion": "1.0",
+  "entries": [
+    {
+      "identifier": "urn:air:example.com:agent:weather",
+      "displayName": "Weather",
+      "type": "application/a2a-agent-card+json",
+      "url": "https://example.com/agent-card.json",
+      "trustManifest": {
+        "identity": "https://example.com",
+        "signature": "placeholder"
+      }
+    }
+  ]
+}`), 0o600); err != nil {
+		t.Fatalf("write catalog: %v", err)
+	}
+
+	command := NewRootCommand()
+	var output bytes.Buffer
+	command.SetOut(&output)
+	command.SetErr(&output)
+	command.SetArgs([]string{"verify", "catalog", catalogPath, "--jws-remote-jwks", "http://example.com/jwks.json"})
+	err := command.Execute()
+	if err == nil || !strings.Contains(err.Error(), "remote JWKS URL must be absolute HTTPS") {
+		t.Fatalf("expected remote JWKS HTTPS error, got %v output %s", err, output.String())
+	}
+}
+
 func cliTestSHA256(value string) string {
 	sum := sha256.Sum256([]byte(value))
 	return "sha256:" + hex.EncodeToString(sum[:])

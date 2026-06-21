@@ -1,10 +1,14 @@
 package verify
 
 import (
+	"context"
 	"crypto/ed25519"
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -102,6 +106,93 @@ func TestLoadTrustAnchorsRejectsUnsupportedJWKSKey(t *testing.T) {
 	}
 }
 
+func TestLoadRemoteTrustAnchorsVerifiesMatchingTrustDomain(t *testing.T) {
+	publicKey, privateKey, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatalf("generate key: %v", err)
+	}
+	server := httptest.NewTLSServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		response.Header().Set("Content-Type", "application/jwk-set+json")
+		_, _ = response.Write([]byte(`{
+  "keys": [
+    {
+      "kty": "OKP",
+      "crv": "Ed25519",
+      "kid": "remote-ed25519",
+      "alg": "EdDSA",
+      "x": "` + base64.RawURLEncoding.EncodeToString(publicKey) + `"
+    }
+  ]
+}`))
+	}))
+	t.Cleanup(server.Close)
+
+	anchors, err := LoadRemoteTrustAnchors(context.Background(), server.URL+"/jwks.json", server.Client())
+	if err != nil {
+		t.Fatalf("load remote JWKS: %v", err)
+	}
+	host := mustURLHost(t, server.URL)
+	trustManifest := map[string]any{
+		"identity":     "https://" + host + "/security",
+		"identityType": "https",
+	}
+	trustManifest["signature"] = testDetachedJWS(t, "remote-ed25519", trustManifest, privateKey)
+	results, err := VerifySignatures(signedCatalog(trustManifest), SignatureOptions{
+		TrustAnchors: anchors,
+	})
+	if err != nil {
+		t.Fatalf("verify signature with remote JWKS: %v", err)
+	}
+	if len(results) != 1 || !results[0].Verified || results[0].KeySource != server.URL+"/jwks.json" {
+		t.Fatalf("unexpected results: %#v", results)
+	}
+}
+
+func TestLoadRemoteTrustAnchorsRejectsNonHTTPSURL(t *testing.T) {
+	_, err := LoadRemoteTrustAnchors(context.Background(), "http://example.com/jwks.json", nil)
+	if err == nil || !strings.Contains(err.Error(), "remote JWKS URL must be absolute HTTPS") {
+		t.Fatalf("expected HTTPS requirement, got %v", err)
+	}
+}
+
+func TestVerifySignaturesRejectsRemoteJWKSHostMismatch(t *testing.T) {
+	publicKey, privateKey, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatalf("generate key: %v", err)
+	}
+	server := httptest.NewTLSServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		response.Header().Set("Content-Type", "application/jwk-set+json")
+		_, _ = response.Write([]byte(`{
+  "keys": [
+    {
+      "kty": "OKP",
+      "crv": "Ed25519",
+      "kid": "remote-ed25519",
+      "alg": "EdDSA",
+      "x": "` + base64.RawURLEncoding.EncodeToString(publicKey) + `"
+    }
+  ]
+}`))
+	}))
+	t.Cleanup(server.Close)
+
+	anchors, err := LoadRemoteTrustAnchors(context.Background(), server.URL+"/jwks.json", server.Client())
+	if err != nil {
+		t.Fatalf("load remote JWKS: %v", err)
+	}
+	trustManifest := map[string]any{
+		"identity":     "https://example.com/security",
+		"identityType": "https",
+	}
+	trustManifest["signature"] = testDetachedJWS(t, "remote-ed25519", trustManifest, privateKey)
+	_, err = VerifySignatures(signedCatalog(trustManifest), SignatureOptions{
+		TrustAnchors: anchors,
+	})
+	if err == nil || !strings.Contains(err.Error(), "remote JWKS host") {
+		t.Fatalf("expected remote JWKS host mismatch, got %v", err)
+	}
+}
+
 func TestVerifySignaturesRejectsTampering(t *testing.T) {
 	publicKey, privateKey, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
@@ -159,6 +250,15 @@ func TestVerifySignaturesRejectsUnknownKeyID(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), `no trust anchor found for kid "missing-ed25519"`) {
 		t.Fatalf("expected unknown key error, got %v", err)
 	}
+}
+
+func mustURLHost(t *testing.T, rawURL string) string {
+	t.Helper()
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		t.Fatalf("parse URL: %v", err)
+	}
+	return parsed.Hostname()
 }
 
 func signedCatalog(trustManifest map[string]any) ard.Catalog {

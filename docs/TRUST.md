@@ -41,6 +41,7 @@ ard verify catalog ./ai-catalog.json --require-attestation-digests
 ard verify catalog ./ai-catalog.json --provenance-digests
 ard verify catalog ./ai-catalog.json --require-provenance-digests
 ard verify catalog ./ai-catalog.json --jws-trust-anchors ./trust-anchors.json
+ard verify catalog ./ai-catalog.json --jws-remote-jwks https://example.com/.well-known/jwks.json
 ard verify catalog ./ai-catalog.json --jws-trust-anchors ./trust-anchors.json --require-jws-signatures
 ```
 
@@ -103,6 +104,13 @@ file. If no `kid` is present, verification only works when exactly one trust anc
 configured. `--require-jws-signatures` requires every catalog entry to carry a
 verifiable `trustManifest.signature`.
 
+`--jws-remote-jwks` accepts an explicit HTTPS JWKS URL and fetches OKP/Ed25519 keys for
+the same signature verification path. Remote JWKS is operator-supplied key resolution,
+not automatic discovery. A key fetched from a remote JWKS URL is only accepted for an
+entry when the JWKS host matches the entry's `trustManifest.identity` trust domain for
+HTTP(S), SPIFFE, or `did:web` identities. Multiple `--jws-remote-jwks` flags may be
+combined with a local `--jws-trust-anchors` file.
+
 ## Current Scope
 
 - Implemented: `trustManifest.identity` presence validation.
@@ -143,11 +151,14 @@ verifiable `trustManifest.signature`.
 - Implemented: detached compact JWS verification for `trustManifest.signature` with
   explicit Ed25519 trust anchors through `ard verify catalog --jws-trust-anchors`.
 - Implemented: local JWKS OKP/Ed25519 trust-anchor files for signature verification.
+- Implemented: explicit HTTPS remote JWKS OKP/Ed25519 trust-anchor fetching through
+  `ard verify catalog --jws-remote-jwks`, with remote key use constrained by
+  `trustManifest.identity` trust-domain matching.
 - Implemented: strict catalog signature requirements with
   `ard verify catalog --require-jws-signatures`.
 - Implemented: admin audit event hash chaining and chain verification.
 - Not implemented yet: attestation truth, auditor trust, or freshness verification.
-- Not implemented yet: DID, SPIFFE, certificate, or key resolution.
+- Not implemented yet: DID, SPIFFE, certificate, OIDC, or automatic key discovery.
 - Not implemented yet: externally anchored or signed audit trails.
 
 Identity trust-domain matching is a metadata consistency check. It rejects entries that
@@ -165,7 +176,7 @@ Provenance digest verification proves byte integrity for fetched HTTP(S) provena
 sources only. It does not resolve URN source identifiers, prove lineage truth, prove who
 published the source, or decide whether a provenance relation is semantically valid.
 
-JWS verification proves the configured Ed25519 key signed the trust manifest bytes that
-`ard` verified. It does not prove who controls the key, resolve DID/SPIFFE identities,
-validate certificates, fetch remote JWKS documents, run OIDC discovery, or decide whether
-the signed claims are true.
+JWS verification proves the configured or explicitly fetched Ed25519 key signed the trust
+manifest bytes that `ard` verified. It does not prove who controls the key, resolve
+DID/SPIFFE identities, validate certificates, run OIDC discovery, or decide whether the
+signed claims are true.
