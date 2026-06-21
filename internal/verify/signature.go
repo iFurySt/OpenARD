@@ -20,6 +20,7 @@ import (
 )
 
 const maxRemoteJWKSBytes = 256 << 10
+const maxDIDWebDocumentBytes = 256 << 10
 
 type SignatureResult struct {
 	Identifier string `json:"identifier"`
@@ -58,6 +59,18 @@ type rawTrustAnchorKey struct {
 	KeyType   string `json:"kty"`
 	Curve     string `json:"crv"`
 	X         string `json:"x"`
+}
+
+type didWebDocument struct {
+	ID                 string                  `json:"id"`
+	VerificationMethod []didWebVerificationKey `json:"verificationMethod"`
+}
+
+type didWebVerificationKey struct {
+	ID           string             `json:"id"`
+	Type         string             `json:"type"`
+	Controller   string             `json:"controller"`
+	PublicKeyJWK *rawTrustAnchorKey `json:"publicKeyJwk"`
 }
 
 type jwsProtectedHeader struct {
@@ -130,6 +143,105 @@ func LoadRemoteTrustAnchors(ctx context.Context, jwksURL string, client *http.Cl
 	return anchors, nil
 }
 
+func DiscoverDIDWebTrustAnchors(ctx context.Context, catalog ard.Catalog, client *http.Client) (TrustAnchors, error) {
+	if client == nil {
+		client = &http.Client{Timeout: 20 * time.Second}
+	}
+	anchorSets := []TrustAnchors{}
+	seenDocuments := map[string]struct{}{}
+	for _, entry := range catalog.Entries {
+		signature := trustString(entry.TrustManifest, "signature")
+		if signature == "" {
+			continue
+		}
+		identity := trustString(entry.TrustManifest, "identity")
+		documentURL, host, ok, err := didWebDocumentURL(identity)
+		if err != nil {
+			return TrustAnchors{}, fmt.Errorf("%s: %w", entry.Identifier, err)
+		}
+		if !ok {
+			continue
+		}
+		if _, seen := seenDocuments[documentURL]; seen {
+			continue
+		}
+		seenDocuments[documentURL] = struct{}{}
+		anchors, err := loadDIDWebDocumentTrustAnchors(ctx, identity, documentURL, host, client)
+		if err != nil {
+			return TrustAnchors{}, fmt.Errorf("%s: %w", entry.Identifier, err)
+		}
+		anchorSets = append(anchorSets, anchors)
+	}
+	return MergeTrustAnchors(anchorSets...), nil
+}
+
+func loadDIDWebDocumentTrustAnchors(ctx context.Context, identity string, documentURL string, host string, client *http.Client) (TrustAnchors, error) {
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, documentURL, nil)
+	if err != nil {
+		return TrustAnchors{}, err
+	}
+	request.Header.Set("Accept", "application/did+json, application/json")
+	request.Header.Set("User-Agent", "ard/0.1")
+	requestid.SetHeader(request.Header, ctx)
+	tracecontext.SetHeader(request.Header, ctx)
+	response, err := client.Do(request)
+	if err != nil {
+		return TrustAnchors{}, err
+	}
+	defer response.Body.Close()
+	if response.StatusCode < 200 || response.StatusCode > 299 {
+		return TrustAnchors{}, fmt.Errorf("did:web document request failed with HTTP %d", response.StatusCode)
+	}
+	limited := io.LimitReader(response.Body, maxDIDWebDocumentBytes+1)
+	data, err := io.ReadAll(limited)
+	if err != nil {
+		return TrustAnchors{}, err
+	}
+	if len(data) > maxDIDWebDocumentBytes {
+		return TrustAnchors{}, fmt.Errorf("did:web document exceeds %d bytes", maxDIDWebDocumentBytes)
+	}
+	var document didWebDocument
+	if err := json.Unmarshal(data, &document); err != nil {
+		return TrustAnchors{}, fmt.Errorf("did:web document: %w", err)
+	}
+	if strings.TrimSpace(document.ID) != "" && document.ID != identity {
+		return TrustAnchors{}, fmt.Errorf("did:web document id %q must match trustManifest.identity %q", document.ID, identity)
+	}
+	anchors := TrustAnchors{Keys: make([]TrustAnchorKey, 0, len(document.VerificationMethod))}
+	for index, method := range document.VerificationMethod {
+		if method.PublicKeyJWK == nil {
+			continue
+		}
+		if strings.TrimSpace(method.ID) == "" {
+			return TrustAnchors{}, fmt.Errorf("did:web verificationMethod[%d].id is required", index)
+		}
+		if method.Controller != "" && method.Controller != identity {
+			return TrustAnchors{}, fmt.Errorf("did:web verificationMethod[%d].controller %q must match trustManifest.identity %q", index, method.Controller, identity)
+		}
+		rawKey, err := json.Marshal(method.PublicKeyJWK)
+		if err != nil {
+			return TrustAnchors{}, err
+		}
+		key, err := parseTrustAnchorKey(rawKey)
+		if err != nil {
+			return TrustAnchors{}, fmt.Errorf("did:web verificationMethod[%d].publicKeyJwk: %w", index, err)
+		}
+		if strings.TrimSpace(key.KeyID) == "" {
+			key.KeyID = method.ID
+		}
+		key.sourceURL = documentURL
+		key.sourceHost = host
+		anchors.Keys = append(anchors.Keys, key)
+	}
+	if len(anchors.Keys) == 0 {
+		return TrustAnchors{}, errors.New("did:web document has no supported verificationMethod publicKeyJwk OKP/Ed25519 keys")
+	}
+	if err := anchors.prepare(); err != nil {
+		return TrustAnchors{}, err
+	}
+	return anchors, nil
+}
+
 func MergeTrustAnchors(anchorSets ...TrustAnchors) TrustAnchors {
 	total := 0
 	for _, anchors := range anchorSets {
@@ -140,6 +252,50 @@ func MergeTrustAnchors(anchorSets ...TrustAnchors) TrustAnchors {
 		merged.Keys = append(merged.Keys, anchors.Keys...)
 	}
 	return merged
+}
+
+func didWebDocumentURL(identity string) (string, string, bool, error) {
+	method, methodID, ok := didParts(identity)
+	if !ok || method != "web" {
+		return "", "", false, nil
+	}
+	parts := strings.Split(methodID, ":")
+	if len(parts) == 0 || strings.TrimSpace(parts[0]) == "" {
+		return "", "", true, errors.New("did:web identity must include a domain")
+	}
+	host, err := didWebUnescapeSegment(parts[0])
+	if err != nil {
+		return "", "", true, fmt.Errorf("did:web domain: %w", err)
+	}
+	if host == "" || strings.Contains(host, "/") || strings.Contains(host, "\\") {
+		return "", "", true, errors.New("did:web domain is invalid")
+	}
+	parsed := &url.URL{Scheme: "https", Host: host}
+	if len(parts) == 1 {
+		parsed.Path = "/.well-known/did.json"
+		return parsed.String(), host, true, nil
+	}
+	pathParts := make([]string, 0, len(parts))
+	for index, part := range parts[1:] {
+		segment, err := didWebUnescapeSegment(part)
+		if err != nil {
+			return "", "", true, fmt.Errorf("did:web path segment %d: %w", index, err)
+		}
+		if segment == "" || segment == "." || segment == ".." || strings.Contains(segment, "/") || strings.Contains(segment, "\\") {
+			return "", "", true, fmt.Errorf("did:web path segment %d is invalid", index)
+		}
+		pathParts = append(pathParts, url.PathEscape(segment))
+	}
+	parsed.Path = "/" + strings.Join(pathParts, "/") + "/did.json"
+	return parsed.String(), host, true, nil
+}
+
+func didWebUnescapeSegment(segment string) (string, error) {
+	unescaped, err := url.PathUnescape(segment)
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(unescaped), nil
 }
 
 func parseTrustAnchors(data []byte) (TrustAnchors, error) {

@@ -155,6 +155,128 @@ func TestLoadRemoteTrustAnchorsRejectsNonHTTPSURL(t *testing.T) {
 	}
 }
 
+func TestDiscoverDIDWebTrustAnchorsVerifiesDIDDocumentKey(t *testing.T) {
+	publicKey, privateKey, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatalf("generate key: %v", err)
+	}
+	server := httptest.NewTLSServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != "/.well-known/did.json" {
+			t.Fatalf("unexpected DID document path: %s", request.URL.Path)
+		}
+		host := request.Host
+		identity := "did:web:" + strings.ReplaceAll(host, ":", "%3A")
+		response.Header().Set("Content-Type", "application/did+json")
+		_, _ = response.Write([]byte(`{
+  "id": "` + identity + `",
+  "verificationMethod": [
+    {
+      "id": "` + identity + `#key-1",
+      "type": "JsonWebKey2020",
+      "controller": "` + identity + `",
+      "publicKeyJwk": {
+        "kty": "OKP",
+        "crv": "Ed25519",
+        "alg": "EdDSA",
+        "x": "` + base64.RawURLEncoding.EncodeToString(publicKey) + `"
+      }
+    }
+  ]
+}`))
+	}))
+	t.Cleanup(server.Close)
+
+	host := mustURLAuthority(t, server.URL)
+	identity := "did:web:" + strings.ReplaceAll(host, ":", "%3A")
+	keyID := identity + "#key-1"
+	trustManifest := map[string]any{
+		"identity":     identity,
+		"identityType": "did",
+	}
+	trustManifest["signature"] = testDetachedJWS(t, keyID, trustManifest, privateKey)
+	catalog := signedCatalog(trustManifest)
+	anchors, err := DiscoverDIDWebTrustAnchors(context.Background(), catalog, server.Client())
+	if err != nil {
+		t.Fatalf("discover did:web trust anchors: %v", err)
+	}
+	results, err := VerifySignatures(catalog, SignatureOptions{TrustAnchors: anchors})
+	if err != nil {
+		t.Fatalf("verify signature with did:web trust anchors: %v", err)
+	}
+	if len(results) != 1 || !results[0].Verified || results[0].KeyID != keyID {
+		t.Fatalf("unexpected results: %#v", results)
+	}
+}
+
+func TestDiscoverDIDWebTrustAnchorsRejectsControllerMismatch(t *testing.T) {
+	publicKey, privateKey, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatalf("generate key: %v", err)
+	}
+	server := httptest.NewTLSServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		host := request.Host
+		identity := "did:web:" + strings.ReplaceAll(host, ":", "%3A")
+		response.Header().Set("Content-Type", "application/did+json")
+		_, _ = response.Write([]byte(`{
+  "id": "` + identity + `",
+  "verificationMethod": [
+    {
+      "id": "` + identity + `#key-1",
+      "controller": "did:web:evil.example",
+      "publicKeyJwk": {
+        "kty": "OKP",
+        "crv": "Ed25519",
+        "alg": "EdDSA",
+        "x": "` + base64.RawURLEncoding.EncodeToString(publicKey) + `"
+      }
+    }
+  ]
+}`))
+	}))
+	t.Cleanup(server.Close)
+
+	host := mustURLAuthority(t, server.URL)
+	identity := "did:web:" + strings.ReplaceAll(host, ":", "%3A")
+	trustManifest := map[string]any{
+		"identity":     identity,
+		"identityType": "did",
+	}
+	trustManifest["signature"] = testDetachedJWS(t, identity+"#key-1", trustManifest, privateKey)
+	_, err = DiscoverDIDWebTrustAnchors(context.Background(), signedCatalog(trustManifest), server.Client())
+	if err == nil || !strings.Contains(err.Error(), "controller") {
+		t.Fatalf("expected controller mismatch, got %v", err)
+	}
+}
+
+func TestDIDWebDocumentURL(t *testing.T) {
+	tests := []struct {
+		identity string
+		want     string
+	}{
+		{
+			identity: "did:web:example.com",
+			want:     "https://example.com/.well-known/did.json",
+		},
+		{
+			identity: "did:web:example.com:users:alice",
+			want:     "https://example.com/users/alice/did.json",
+		},
+		{
+			identity: "did:web:localhost%3A8443",
+			want:     "https://localhost:8443/.well-known/did.json",
+		},
+	}
+	for _, tt := range tests {
+		got, _, ok, err := didWebDocumentURL(tt.identity)
+		if err != nil {
+			t.Fatalf("did web document URL for %s: %v", tt.identity, err)
+		}
+		if !ok || got != tt.want {
+			t.Fatalf("did web document URL for %s = %q, %v; want %q, true", tt.identity, got, ok, tt.want)
+		}
+	}
+}
+
 func TestVerifySignaturesRejectsRemoteJWKSHostMismatch(t *testing.T) {
 	publicKey, privateKey, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
@@ -259,6 +381,15 @@ func mustURLHost(t *testing.T, rawURL string) string {
 		t.Fatalf("parse URL: %v", err)
 	}
 	return parsed.Hostname()
+}
+
+func mustURLAuthority(t *testing.T, rawURL string) string {
+	t.Helper()
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		t.Fatalf("parse URL: %v", err)
+	}
+	return parsed.Host
 }
 
 func signedCatalog(trustManifest map[string]any) ard.Catalog {

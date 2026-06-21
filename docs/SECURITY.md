@@ -88,9 +88,12 @@ Use this document to make secure defaults explicit and legible to agents.
 - `ard verify catalog --jws-remote-jwks https://example.com/.well-known/jwks.json`
   fetches an explicit HTTPS JWKS URL for signature verification. Remote JWKS keys are
   only used when the JWKS host matches the entry `trustManifest.identity` trust domain.
+- `ard verify catalog --jws-discover-did-web` resolves `did:web`
+  `trustManifest.identity` documents over HTTPS and uses
+  `verificationMethod[].publicKeyJwk` OKP/Ed25519 keys for detached JWS verification.
 - `ard verify catalog --require-jws-signatures` requires every catalog entry to carry a
   verifiable detached JWS `trustManifest.signature`; it must be used with
-  `--jws-trust-anchors` or `--jws-remote-jwks`.
+  `--jws-trust-anchors`, `--jws-remote-jwks`, or `--jws-discover-did-web`.
 - Source digest verification proves byte integrity for the fetched URL only. It does not
   prove publisher identity, trust schema authority, attestation truth, runtime safety, or
   compliance status. Attestation digest verification proves byte integrity for fetched
@@ -98,8 +101,10 @@ Use this document to make secure defaults explicit and legible to agents.
   digest verification proves byte integrity for fetched HTTP(S) provenance sources only;
   it does not resolve URN source identifiers or prove lineage truth. JWS verification
   proves the configured key signed the `trustManifest` payload; it does not prove who
-  controls that key or whether the signed claims are true. Explicit remote JWKS fetching
-  does not perform DID, SPIFFE, certificate, OIDC, or automatic key discovery.
+  controls that key or whether the signed claims are true. `did:web` discovery proves
+  the key was advertised by the fetched DID document at verification time, but it does
+  not prove claim truth and does not perform non-`did:web` DID, SPIFFE, certificate, or
+  OIDC discovery.
 - Detailed trust behavior is in `docs/TRUST.md`.
 
 ## Audit Events
@@ -164,7 +169,7 @@ Use this document to make secure defaults explicit and legible to agents.
 - No signed policy bundle or external policy engine yet.
 - No attestation truth, auditor trust, freshness verification, or provenance lineage
   truth verification yet.
-- No DID, SPIFFE, certificate, OIDC, or automatic key-discovery verification yet.
+- No non-`did:web` DID, SPIFFE, certificate, or OIDC key-discovery verification yet.
 
 ## Scope
 
