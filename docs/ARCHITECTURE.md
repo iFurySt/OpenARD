@@ -21,9 +21,10 @@ Cobra, Gin, GORM, and Postgres.
   while `pkg/client` provides an embeddable HTTP client for public discovery and
   token-protected admin registry surfaces. `docs/SDK_COMPATIBILITY.md` defines the
   public import paths, pre-1.0 compatibility expectations, and unstable boundaries.
-- Container distribution: the root `Dockerfile` builds all three binaries and defaults
-  to the dedicated `ard-server` runtime entrypoint. `infra/compose.yaml` runs the
-  registry with Postgres for local self-hosted trials.
+- Container distribution: the root `Dockerfile` builds all three binaries, builds the
+  OpenARD Console static assets, and defaults to the dedicated `ard-server` runtime
+  entrypoint serving `/console`. `infra/compose.yaml` runs the registry with Postgres
+  for local self-hosted trials.
 - Binary distribution: `make package` produces versioned Linux/macOS amd64/arm64
   archives for `ard`, `ardctl`, and `ard-server`, plus an SPDX SBOM and SHA-256 checksum
   manifest. Build metadata is embedded into all packaged binaries and exposed through

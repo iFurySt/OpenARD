@@ -29,6 +29,7 @@ services:
       ARD_ADMIN_TOKEN: ${ARD_ADMIN_TOKEN:-dev-admin-token}
       ARD_ADMIN_TOKENS_FILE: ${ARD_ADMIN_TOKENS_FILE:-}
       ARD_POLICY_FILE: ${ARD_POLICY_FILE:-}
+      ARD_CONSOLE_DIR: /usr/share/openard/console
     command: ["--addr", ":8080"]
     depends_on:
       postgres:

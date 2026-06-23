@@ -50,6 +50,9 @@ if [ "${health_ready}" -ne 1 ]; then
 fi
 curl -fsS "${registry_url}/health" >/tmp/ard-compose-health.json
 grep -q "\"commit\":\"${commit}\"" /tmp/ard-compose-health.json
+curl -fsS "${registry_url}/console/" >/tmp/ard-compose-console.html
+grep -q "OpenARD Console" /tmp/ard-compose-console.html
+grep -q "/console/assets/" /tmp/ard-compose-console.html
 
 bin/ardctl admin add catalog ./internal/catalog/testdata/acme-ai-catalog.json \
   --registry-url "${registry_url}" \

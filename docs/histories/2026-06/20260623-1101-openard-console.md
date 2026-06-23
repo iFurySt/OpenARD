@@ -22,6 +22,7 @@
   - Added administrator pages for Overview, Discover, Catalog, Add Resource, Reviews,
     Audit Log, Operations, and Settings.
   - Added optional registry-hosted static console serving at `/console`.
+  - Bundled the console into the Docker image and compose deployment path.
   - Added npm workspace scripts plus Makefile targets for console development, linting,
     and builds.
   - Documented local console development and browser verification expectations.
@@ -37,10 +38,17 @@ The console build is also deployable as a same-origin registry asset through
 `--console-dir` / `ARD_CONSOLE_DIR`, reducing local setup to one server process after the
 frontend has been built.
 
+The container image builds that console asset during Docker builds and serves it from
+`/usr/share/openard/console`, so the Compose stack exposes the administrator UI at
+`/console` without a separate frontend process.
+
 ### Files Modified
 
 - `package.json`
 - `Makefile`
+- `Dockerfile`
+- `infra/compose.yaml`
+- `scripts/test-compose.sh`
 - `apps/console/`
 - `internal/cli/`
 - `internal/config/`

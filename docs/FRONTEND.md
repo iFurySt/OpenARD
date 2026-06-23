@@ -44,6 +44,9 @@ bin/ard-server --console-dir apps/console/dist
 console Settings API base URL empty for this same-origin mode. Use
 `ARD_CONSOLE_BASE=/` only for a standalone static host that serves the app from `/`.
 
+The Docker image builds and includes the console at `/usr/share/openard/console`; the
+compose stack serves it at `http://127.0.0.1:18080/console/`.
+
 ## Build And Checks
 
 ```sh

@@ -1,6 +1,7 @@
 # Deployment
 
-`ard` ships as Go binaries and as a container image for the registry server.
+`ard` ships as Go binaries and as a container image for the registry server. The
+container image also includes OpenARD Console and serves it at `/console`.
 
 ## Binaries
 
@@ -112,6 +113,15 @@ ARD_ADMIN_TOKEN='change-me' \
 bin/ard-server --addr :8080
 ```
 
+Serve a locally built OpenARD Console from the same registry origin:
+
+```sh
+make console-build
+DATABASE_URL='postgres://ard:ard@localhost:5432/ard?sslmode=disable' \
+ARD_ADMIN_TOKEN='change-me' \
+bin/ard-server --addr :8080 --console-dir apps/console/dist
+```
+
 Enable OTLP/HTTP trace export:
 
 ```sh
@@ -135,6 +145,13 @@ for operational use.
 `make build`. Docker Compose also forwards those variables into the image build when
 they are set.
 
+The image builds OpenARD Console from the npm workspace, copies the static assets to
+`/usr/share/openard/console`, and defaults to:
+
+```sh
+ard-server --addr :8080 --console-dir /usr/share/openard/console
+```
+
 Expected environment:
 
 - `DATABASE_URL`: Postgres connection URL.
@@ -144,6 +161,8 @@ Expected environment:
 - `ARD_POLICY_FILE`: optional ingestion policy file path.
 - `ARD_OTLP_TRACES_ENDPOINT`: optional OTLP/HTTP traces endpoint. Base collector URLs
   are normalized to `/v1/traces`.
+- `ARD_CONSOLE_DIR`: optional OpenARD Console static directory served at `/console`.
+  The bundled image sets this to `/usr/share/openard/console`.
 
 ## Compose
 
@@ -153,7 +172,8 @@ Start a local registry and Postgres:
 docker compose -f infra/compose.yaml up --build
 ```
 
-The compose file exposes the registry at `http://127.0.0.1:18080` by default.
+The compose file exposes the registry at `http://127.0.0.1:18080` by default. OpenARD
+Console is available from the same origin at `http://127.0.0.1:18080/console/`.
 
 Useful overrides:
 
@@ -171,9 +191,9 @@ Run the automated compose verification:
 make test-compose
 ```
 
-The verification builds the image, starts Postgres and the registry, imports the checked-in
-catalog fixture through the admin API, searches through the public API, checks metrics, and
-then removes the compose stack and volume.
+The verification builds the image, starts Postgres and the registry, checks the bundled
+console HTML, imports the checked-in catalog fixture through the admin API, searches
+through the public API, checks metrics, and then removes the compose stack and volume.
 
 ## Operations Notes
 
