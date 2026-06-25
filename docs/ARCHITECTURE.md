@@ -295,7 +295,7 @@ The upstream specification source is:
 - Repository: `https://github.com/ards-project/ard-spec`
 - Rendered spec: `https://agenticresourcediscovery.org/spec/`
 - Current observed draft: v0.9
-- Current observed local checkout commit during planning: `a78be70`
+- Current observed local checkout commit: `f606687e93c98da5cc7be3a752361c3c762bfc4f`
 
 Implementation decisions should prefer the upstream main spec, schemas, ADRs, and
 conformance tool over older reference implementations. In particular:

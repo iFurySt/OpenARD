@@ -9,7 +9,9 @@ ground `ard` implementation planning.
 
 - GitHub: https://github.com/ards-project/ard-spec
 - Rendered spec: https://agenticresourcediscovery.org/spec/
-- Local checkout reviewed during planning: `a78be70`
+- Previous local checkout checkpoint: `a78be70`
+- Current local checkout reviewed: `f606687e93c98da5cc7be3a752361c3c762bfc4f`
+  (2026-06-25)
 - Upstream status observed from README: v0.9 draft, Apache-2.0, no GitHub releases yet.
 
 The upstream repository describes itself as the canonical home of the Agentic Resource
@@ -70,11 +72,36 @@ The reviewed checkout has some internal version drift:
 
 - README and main spec say v0.9 draft.
 - OpenAPI and conformance tooling still include v0.5.0 labels in places.
-- Some older ADR context text mentions `urn:ai:` even though the accepted current form is
-  `urn:air:`.
+- Some older ADR context text still mentions `urn:ai:` even though the accepted current
+  form is `urn:air:`. The main spec text now uses `air` for the URN Namespace
+  Identifier.
 
 Implementation should follow the current main spec, schemas, and conformance behavior,
 not older explanatory text from superseded ADR context.
+
+## 2026-06-25 Upstream Delta Review
+
+Reviewed `../ard-spec` changes from `a78be70` through
+`f606687e93c98da5cc7be3a752361c3c762bfc4f`.
+
+Relevant upstream changes:
+
+- `spec/schemas/ard.openapi.yaml` now allows `query.filter` values to be either a bare
+  string or an array of strings. `spec/ard.md` also states that a bare scalar is accepted
+  as a single-element array. `ard` already matches this behavior: `ard.Filter`
+  unmarshals scalar strings and string arrays into `map[string][]string`, with
+  `TestSearchFilterAcceptsScalarAndArray` covering the case.
+- `conformance/examples/registry-server.py` now treats catalog entry `description` as
+  optional, and the example catalog includes an entry without `description`. `ard`
+  already models `CatalogEntry.Description` as optional and does not require it during
+  validation.
+- `spec/ard.md` corrected the URN Namespace Identifier explanation from `ai` to `air`.
+  `ard` already validates and generates `urn:air:` identifiers and rejects the older
+  `urn:ai:` form.
+- Upstream README contribution guidance and zero-dependency conformance CI changes do
+  not require implementation changes here.
+
+No code changes were required for this checkpoint.
 
 ## Source Management Recommendation
 
